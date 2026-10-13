@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# Herramientas de calidad
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Secretos y datos locales (nunca en el repositorio)
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.fernet
+*.db
+*.sqlite
+*.sqlite3
+
+# Entorno / IDE
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Claude Code (configuración local)
+.claude/settings.local.json

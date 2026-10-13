@@ -1,0 +1,24 @@
+# AI_USAGE.md
+
+Registro de trazabilidad del uso de IA (ver CLAUDE.md). Una entrada por tarea;
+los commits con código generado llevan el trailer `AI-Assisted: Claude Code`.
+
+## Plantilla
+
+```markdown
+### YYYY-MM-DD - <título de la tarea> (issue #N)
+- **Herramienta:** <herramienta y modelo>
+- **Resumen del prompt:** <qué se pidió>
+- **Qué se generó:** <ficheros / funciones>
+- **Qué se modificó a mano:** <cambios humanos tras la generación, o "nada">
+- **Commit(s):** <hash o enlace>
+```
+
+## Entradas
+
+### 2026-10-13 - Esqueleto del repositorio
+- **Herramienta:** Claude Code (Claude Sonnet 5.5)
+- **Resumen del prompt:** crear esqueleto con pyproject.toml (Python 3.12), paquete con módulos vacíos de CLAUDE.md, configuración de ruff/mypy/bandit, workflow de CI, AI_USAGE.md y .gitignore, sin lógica.
+- **Qué se generó:** pyproject.toml, src/securization (8 módulos vacíos), tests/test_paquete.py, .github/workflows/ci.yml, AI_USAGE.md, .gitignore.
+- **Qué se modificó a mano:** pendiente de revisión.
+- **Commit(s):** pendiente.
