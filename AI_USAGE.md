@@ -43,3 +43,10 @@ los commits con código generado llevan el trailer `AI-Assisted: Claude Code`.
 - **Qué se generó:** tests/test_inventario.py y src/securization/inventario.py (`CredentialVault`, `Host`, `Inventory`).
 - **Qué se modificó a mano:** tests aprobados y implementación revisada línea a línea por el usuario (sin cambios).
 - **Commit(s):** ver el PR de la rama feature/s1-inventario.
+
+### 2026-10-19 - S2: parsers de LinuxProfiler
+- **Herramienta:** Claude Code (Claude Sonnet 5.5)
+- **Resumen del prompt:** implementar los parsers de `/etc/os-release`, `ss -tlnp` y `ls -1Ap /` del PLAN, tests primero con salidas de ejemplo.
+- **Qué se generó:** tests/test_parsers_linux.py, tests/fixtures/linux/*.txt y src/securization/parsers_linux.py (parsers y comandos remotos como tuplas de argumentos).
+- **Qué se modificó a mano:** tests aprobados por el usuario antes de implementar; implementación pendiente de revisión.
+- **Commit(s):** ver el PR de la rama feature/s2-parsers-linux.

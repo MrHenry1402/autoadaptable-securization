@@ -24,7 +24,7 @@ Fuera del MVP: Cowrie, Windows, Scapy, comparación de modelos y la API de Anthr
 - [x] S0 Esqueleto del repo, CI, `HostProfile`, `OsFamily` y `HostProfiler` (PR #1, #2)
 - [x] S1 Inventario: modelo `Host`, SQLite con SQLModel, alta y baja, credenciales SSH
       cifradas con Fernet (revisión línea a línea)
-- [ ] S2 Parsers de `LinuxProfiler`: `/etc/os-release`, `ss -tlnp`, directorios de primer
+- [x] S2 Parsers de `LinuxProfiler`: `/etc/os-release`, `ss -tlnp`, directorios de primer
       nivel (entrada: texto, salida: modelos)
 - [ ] S3 Parser de nmap XML (`-sV -O`) y modelo de huella (`Fingerprint`); cálculo de IPs
       libres a partir de subred y hosts conocidos
