@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from securization.modelos import HostProfile, OsFamily, ServiceInfo
+from securization.modelos import Fingerprint, HostProfile, OsFamily, ServiceInfo
 
 
 def perfil_valido(**cambios: Any) -> dict[str, Any]:
@@ -81,3 +81,49 @@ def test_perfil_es_inmutable() -> None:
     perfil = HostProfile.model_validate(perfil_valido())
     with pytest.raises(ValidationError):
         perfil.host_id = "otro"  # type: ignore[misc]
+
+
+# --- Huella de red (Fingerprint) -------------------------------------------
+
+
+def huella_valida(**cambios: Any) -> dict[str, Any]:
+    datos: dict[str, Any] = {
+        "address": "10.0.0.10",
+        "os_matches": [{"name": "Linux 5.10 - 5.15", "accuracy": 97, "os_family": "Linux"}],
+        "services": [
+            {
+                "port": 22,
+                "protocol": "tcp",
+                "name": "ssh",
+                "product": "OpenSSH",
+                "version": "9.2p1 Debian 2+deb12u3",
+                "extrainfo": "protocol 2.0",
+                "banner": "SSH-2.0-OpenSSH_9.2p1 Debian-2+deb12u3",
+            }
+        ],
+    }
+    datos.update(cambios)
+    return datos
+
+
+def test_huella_valida_ida_y_vuelta_json() -> None:
+    huella = Fingerprint.model_validate(huella_valida())
+    assert Fingerprint.model_validate_json(huella.model_dump_json()) == huella
+    assert huella.services[0].product == "OpenSSH"
+
+
+def test_service_info_conserva_compatibilidad_sin_campos_nmap() -> None:
+    servicio = ServiceInfo(port=22, protocol="tcp", name="ssh")
+    assert (servicio.product, servicio.version, servicio.extrainfo) == (None, None, None)
+
+
+@pytest.mark.parametrize("precision", [-1, 101])
+def test_precision_del_os_fuera_de_rango(precision: int) -> None:
+    match = {"name": "Linux", "accuracy": precision, "os_family": "Linux"}
+    with pytest.raises(ValidationError):
+        Fingerprint.model_validate(huella_valida(os_matches=[match]))
+
+
+def test_huella_rechaza_campos_extra() -> None:
+    with pytest.raises(ValidationError):
+        Fingerprint.model_validate(huella_valida(extra="no"))

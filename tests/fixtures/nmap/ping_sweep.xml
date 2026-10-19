@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE nmaprun>
+<nmaprun scanner="nmap" args="nmap -sn -oX - 10.0.0.0/28" start="1760000100" version="7.94SVN" xmloutputversion="1.05">
+<host><status state="up" reason="arp-response" reason_ttl="0"/><address addr="10.0.0.11" addrtype="ipv4"/><address addr="08:00:27:00:00:11" addrtype="mac"/></host>
+<host><status state="up" reason="arp-response" reason_ttl="0"/><address addr="10.0.0.5" addrtype="ipv4"/></host>
+<host><status state="down" reason="no-response" reason_ttl="0"/><address addr="10.0.0.7" addrtype="ipv4"/></host>
+<host><status state="up" reason="localhost-response" reason_ttl="0"/><address addr="10.0.0.10" addrtype="ipv4"/></host>
+<host><status state="up" reason="arp-response" reason_ttl="0"/><address addr="fe80::1" addrtype="ipv6"/></host>
+<runstats><finished time="1760000102" exit="success"/><hosts up="4" down="1" total="5"/></runstats>
+</nmaprun>
