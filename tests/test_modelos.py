@@ -56,7 +56,7 @@ def test_os_family_es_obligatorio() -> None:
 
 def test_campos_extra_se_rechazan() -> None:
     with pytest.raises(ValidationError):
-        HostProfile.model_validate(perfil_valido(password="secreto"))  # noqa: S106
+        HostProfile.model_validate(perfil_valido(password="secreto"))
 
 
 @pytest.mark.parametrize("puerto", [0, 65536, -1])
