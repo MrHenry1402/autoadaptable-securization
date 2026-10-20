@@ -50,3 +50,10 @@ los commits con código generado llevan el trailer `AI-Assisted: Claude Code`.
 - **Qué se generó:** tests/test_parsers_linux.py, tests/fixtures/linux/*.txt y src/securization/parsers_linux.py (parsers y comandos remotos como tuplas de argumentos).
 - **Qué se modificó a mano:** tests aprobados por el usuario antes de implementar; implementación pendiente de revisión.
 - **Commit(s):** ver el PR de la rama feature/s2-parsers-linux.
+
+### 2026-10-20 - S3: nmap XML, huella de red e IPs libres
+- **Herramienta:** Claude Code (Claude Sonnet 5.5)
+- **Resumen del prompt:** implementar el parser de nmap XML (-sV -O), el modelo de huella y el cálculo de IPs libres del PLAN, tests primero con salidas de ejemplo.
+- **Qué se generó:** tests/test_escaneo.py, tests/test_parsing.py, tests/fixtures/nmap/*.xml, src/securization/escaneo.py, src/securization/parsing.py y los modelos `OsMatch` y `Fingerprint` (y campos nuevos de `ServiceInfo`) en modelos.py.
+- **Qué se modificó a mano:** tests aprobados por el usuario antes de implementar; implementación pendiente de revisión. Se movió el saneado común de parsers_linux.py a parsing.py.
+- **Commit(s):** ver el PR de la rama feature/s3-nmap-huella.

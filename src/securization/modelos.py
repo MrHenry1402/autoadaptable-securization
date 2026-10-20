@@ -27,6 +27,25 @@ class ServiceInfo(_Modelo):
     protocol: Literal["tcp", "udp"]
     name: str
     banner: str | None = None
+    product: str | None = None
+    version: str | None = None
+    extrainfo: str | None = None
+
+
+class OsMatch(_Modelo):
+    """Hipótesis de sistema operativo devuelta por `nmap -O`."""
+
+    name: str
+    accuracy: int = Field(ge=0, le=100)
+    os_family: str | None = None
+
+
+class Fingerprint(_Modelo):
+    """Huella de red de un host: SO estimado y servicios abiertos observados con nmap."""
+
+    address: IPv4Address
+    os_matches: list[OsMatch] = Field(default_factory=list)
+    services: list[ServiceInfo] = Field(default_factory=list)
 
 
 class HostProfile(_Modelo):
