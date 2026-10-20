@@ -36,3 +36,10 @@ los commits con código generado llevan el trailer `AI-Assisted: Claude Code`.
 - **Qué se generó:** docs/PLAN.md.
 - **Qué se modificó a mano:** pendiente de revisión.
 - **Commit(s):** ver el PR de la rama feature/plan-mvp.
+
+### 2026-10-19 - S1: inventario y credenciales cifradas
+- **Herramienta:** Claude Code (Claude Sonnet 5.5)
+- **Resumen del prompt:** implementar el inventario del PLAN (alta/baja de hosts en SQLite con SQLModel y credenciales SSH cifradas con Fernet), tests primero.
+- **Qué se generó:** tests/test_inventario.py y src/securization/inventario.py (`CredentialVault`, `Host`, `Inventory`).
+- **Qué se modificó a mano:** tests aprobados y implementación revisada línea a línea por el usuario (sin cambios).
+- **Commit(s):** ver el PR de la rama feature/s1-inventario.

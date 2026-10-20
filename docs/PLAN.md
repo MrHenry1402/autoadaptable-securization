@@ -1,4 +1,4 @@
-# Plan de desarrollo del MVP
+﻿# Plan de desarrollo del MVP
 
 Fuente: `Memoria_Sistema_Deception.pdf` y `CLAUDE.md`. Cada sesión es un issue, una rama,
 tests primero (se revisan) y un PR con squash a `main`. Marcar con `[x]` al fusionar.
@@ -22,7 +22,7 @@ Fuera del MVP: Cowrie, Windows, Scapy, comparación de modelos y la API de Anthr
 ## Sesiones sin laboratorio
 
 - [x] S0 Esqueleto del repo, CI, `HostProfile`, `OsFamily` y `HostProfiler` (PR #1, #2)
-- [ ] S1 Inventario: modelo `Host`, SQLite con SQLModel, alta y baja, credenciales SSH
+- [x] S1 Inventario: modelo `Host`, SQLite con SQLModel, alta y baja, credenciales SSH
       cifradas con Fernet (revisión línea a línea)
 - [ ] S2 Parsers de `LinuxProfiler`: `/etc/os-release`, `ss -tlnp`, directorios de primer
       nivel (entrada: texto, salida: modelos)
