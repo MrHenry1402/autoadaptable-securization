@@ -26,7 +26,7 @@ Fuera del MVP: Cowrie, Windows, Scapy, comparación de modelos y la API de Anthr
       cifradas con Fernet (revisión línea a línea)
 - [x] S2 Parsers de `LinuxProfiler`: `/etc/os-release`, `ss -tlnp`, directorios de primer
       nivel (entrada: texto, salida: modelos)
-- [ ] S3 Parser de nmap XML (`-sV -O`) y modelo de huella (`Fingerprint`); cálculo de IPs
+- [x] S3 Parser de nmap XML (`-sV -O`) y modelo de huella (`Fingerprint`); cálculo de IPs
       libres a partir de subred y hosts conocidos
 - [ ] S4 Orquestación del perfilado sobre una interfaz `SshTransport` (falsa en tests) y
       perfil completo en JSON guardado en la base de datos

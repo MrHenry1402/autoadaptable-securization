@@ -6,41 +6,37 @@ confiable: se descartan los caracteres de control y se limita la longitud de los
 
 import re
 import shlex
-import unicodedata
 from collections.abc import Sequence
 from ipaddress import ip_address
 
 from securization.modelos import ServiceInfo
+from securization.parsing import ParseError, has_control_chars, sanitize_text
 
 # Comandos remotos fijos; se ejecutan como lista de argumentos, nunca construidos a mano.
 OS_RELEASE_CMD: tuple[str, ...] = ("cat", "/etc/os-release")
 SS_CMD: tuple[str, ...] = ("ss", "-tlnp")
 LS_ROOT_CMD: tuple[str, ...] = ("ls", "-1Ap", "/")
 
-_MAX_VALUE_LEN = 256
+__all__ = [
+    "LS_ROOT_CMD",
+    "OS_RELEASE_CMD",
+    "SS_CMD",
+    "ParseError",
+    "parse_os_release",
+    "parse_ss_listening",
+    "parse_top_level_dirs",
+    "to_command_line",
+]
+
 _MAX_DIR_NAME_LEN = 255
 _UNKNOWN_PROCESS = "unknown"
 _VIRTUAL_DIRS = frozenset({"proc", "sys", "dev", "run", "lost+found"})
 _PROCESS_RE = re.compile(r'users:\(\("([^"]*)"')
 
 
-class ParseError(Exception):
-    """La salida del comando no contiene la información mínima esperada."""
-
-
 def to_command_line(argv: Sequence[str]) -> str:
     """Convierte una lista de argumentos en la línea que pide asyncssh, escapando cada uno."""
     return shlex.join(argv)
-
-
-def _has_control_chars(texto: str) -> bool:
-    return any(unicodedata.category(c) == "Cc" for c in texto)
-
-
-def _sanitize(texto: str) -> str:
-    """Quita caracteres de control y trunca a la longitud máxima."""
-    limpio = "".join(c for c in texto if unicodedata.category(c) != "Cc")
-    return limpio[:_MAX_VALUE_LEN]
 
 
 def parse_os_release(text: str) -> str:
@@ -64,7 +60,7 @@ def parse_os_release(text: str) -> str:
         if base:
             version = valores.get("VERSION_ID")
             nombre = f"{base} {version}" if version else base
-    resultado = _sanitize(nombre).strip() if nombre else ""
+    resultado = sanitize_text(nombre).strip() if nombre else ""
     if not resultado:
         raise ParseError("/etc/os-release no contiene PRETTY_NAME ni NAME")
     return resultado
@@ -91,7 +87,7 @@ def parse_ss_listening(text: str) -> list[ServiceInfo]:
             except ValueError:
                 continue
         coincidencia = _PROCESS_RE.search(linea)
-        nombre = _sanitize(coincidencia.group(1)) if coincidencia else ""
+        nombre = sanitize_text(coincidencia.group(1)) if coincidencia else ""
         nombre = nombre or _UNKNOWN_PROCESS
         if por_puerto.get(puerto, _UNKNOWN_PROCESS) == _UNKNOWN_PROCESS:
             por_puerto[puerto] = nombre
@@ -113,7 +109,7 @@ def parse_top_level_dirs(text: str) -> list[str]:
             or "/" in nombre
             or nombre in (".", "..")
             or len(nombre) > _MAX_DIR_NAME_LEN
-            or _has_control_chars(nombre)
+            or has_control_chars(nombre)
             or nombre in _VIRTUAL_DIRS
         ):
             continue
