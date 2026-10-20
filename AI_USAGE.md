@@ -29,3 +29,10 @@ los commits con código generado llevan el trailer `AI-Assisted: Claude Code`.
 - **Qué se generó:** tests/test_modelos.py, tests/test_perfilador_interfaz.py, src/securization/modelos.py y src/securization/perfilador.py (interfaz, `LinuxProfiler` sin lógica y `get_profiler`).
 - **Qué se modificó a mano:** tests revisados y aprobados por el usuario antes de implementar; resto pendiente de revisión.
 - **Commit(s):** ver historial de la rama feature/h1-modelos-perfil.
+
+### 2026-10-19 - Plan del MVP por sesiones
+- **Herramienta:** Claude Code (Claude Sonnet 5.5)
+- **Resumen del prompt:** a partir de la memoria (PDF) y CLAUDE.md, definir el MVP y dividirlo en sesiones que se puedan hacer sin acceso al laboratorio.
+- **Qué se generó:** docs/PLAN.md.
+- **Qué se modificó a mano:** pendiente de revisión.
+- **Commit(s):** ver el PR de la rama feature/plan-mvp.
