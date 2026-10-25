@@ -28,7 +28,7 @@ Fuera del MVP: Cowrie, Windows, Scapy, comparación de modelos y la API de Anthr
       nivel (entrada: texto, salida: modelos)
 - [x] S3 Parser de nmap XML (`-sV -O`) y modelo de huella (`Fingerprint`); cálculo de IPs
       libres a partir de subred y hosts conocidos
-- [ ] S4 Orquestación del perfilado sobre una interfaz `SshTransport` (falsa en tests) y
+- [x] S4 Orquestación del perfilado sobre una interfaz `SshTransport` (falsa en tests) y
       perfil completo en JSON guardado en la base de datos
 - [ ] S5 `BreadcrumbCatalog` Linux: plantillas deterministas (.env, backup.sql,
       .bash_history, claves), lista blanca de rutas, sin permisos de ejecución, límite de
