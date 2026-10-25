@@ -64,3 +64,10 @@ los commits con código generado llevan el trailer `AI-Assisted: Claude Code`.
 - **Qué se generó:** tests/test_perfilador_ssh.py, tests/test_orquestacion_perfil.py y los cambios en src/securization/perfilador.py (`SshTransport`, `ProfilingError`, `ProfileNotFoundError`, `LinuxProfiler.profile` real, `HostProfileStore`, `orchestrate_profiling`).
 - **Qué se modificó a mano:** ninguno; ruff, mypy --strict, bandit y pytest --cov (100% en perfilador.py) ejecutados y en verde antes de abrir el PR.
 - **Commit(s):** ver el PR de la rama feature/s4-orquestacion-perfilado.
+
+### 2026-10-26 - S5: catálogo de breadcrumbs Linux
+- **Herramienta:** Claude Code (Claude Sonnet 5.5)
+- **Resumen del prompt:** implementar la interfaz `BreadcrumbCatalog` y `LinuxBreadcrumbCatalog` del PLAN: plantillas deterministas de .env, backup.sql, .bash_history y una clave SSH falsa a partir del `HostProfile`, con lista blanca de directorios, sin permisos de ejecución, límite de tamaño y comprobación de colisiones contra rutas ya conocidas o ya plantadas. Tests primero.
+- **Qué se generó:** tests/test_generador_breadcrumbs.py y src/securization/generador.py (`Breadcrumb`, `BreadcrumbCatalog`, `LinuxBreadcrumbCatalog`, `validate_breadcrumb`, `check_collisions`, `get_catalog`).
+- **Qué se modificó a mano:** ninguno; ruff, mypy --strict, bandit y pytest --cov (100% en generador.py) ejecutados y en verde antes de abrir el PR.
+- **Commit(s):** ver el PR de la rama feature/s5-breadcrumb-catalog-linux.
