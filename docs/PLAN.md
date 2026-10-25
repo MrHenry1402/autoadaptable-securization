@@ -30,7 +30,7 @@ Fuera del MVP: Cowrie, Windows, Scapy, comparación de modelos y la API de Anthr
       libres a partir de subred y hosts conocidos
 - [ ] S4 Orquestación del perfilado sobre una interfaz `SshTransport` (falsa en tests) y
       perfil completo en JSON guardado en la base de datos
-- [ ] S5 `BreadcrumbCatalog` Linux: plantillas deterministas (.env, backup.sql,
+- [x] S5 `BreadcrumbCatalog` Linux: plantillas deterministas (.env, backup.sql,
       .bash_history, claves), lista blanca de rutas, sin permisos de ejecución, límite de
       tamaño y comprobación de colisiones contra el inventario
 - [ ] S6 Generador determinista (H2): modelo `Campaign` y configuración de OpenCanary

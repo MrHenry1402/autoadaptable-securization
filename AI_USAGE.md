@@ -57,3 +57,10 @@ los commits con código generado llevan el trailer `AI-Assisted: Claude Code`.
 - **Qué se generó:** tests/test_escaneo.py, tests/test_parsing.py, tests/fixtures/nmap/*.xml, src/securization/escaneo.py, src/securization/parsing.py y los modelos `OsMatch` y `Fingerprint` (y campos nuevos de `ServiceInfo`) en modelos.py.
 - **Qué se modificó a mano:** tests aprobados por el usuario antes de implementar; implementación pendiente de revisión. Se movió el saneado común de parsers_linux.py a parsing.py.
 - **Commit(s):** ver el PR de la rama feature/s3-nmap-huella.
+
+### 2026-10-26 - S5: catálogo de breadcrumbs Linux
+- **Herramienta:** Claude Code (Claude Sonnet 5.5)
+- **Resumen del prompt:** implementar la interfaz `BreadcrumbCatalog` y `LinuxBreadcrumbCatalog` del PLAN: plantillas deterministas de .env, backup.sql, .bash_history y una clave SSH falsa a partir del `HostProfile`, con lista blanca de directorios, sin permisos de ejecución, límite de tamaño y comprobación de colisiones contra rutas ya conocidas o ya plantadas. Tests primero.
+- **Qué se generó:** tests/test_generador_breadcrumbs.py y src/securization/generador.py (`Breadcrumb`, `BreadcrumbCatalog`, `LinuxBreadcrumbCatalog`, `validate_breadcrumb`, `check_collisions`, `get_catalog`).
+- **Qué se modificó a mano:** ninguno; ruff, mypy --strict, bandit y pytest --cov (100% en generador.py) ejecutados y en verde antes de abrir el PR.
+- **Commit(s):** ver el PR de la rama feature/s5-breadcrumb-catalog-linux.
