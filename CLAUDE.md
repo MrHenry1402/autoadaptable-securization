@@ -73,6 +73,7 @@ Riesgo conocido para Windows (no resolver ahora): los deception hosts corren en 
 ## Trazabilidad del uso de IA
 - Cada commit con codigo generado lleva el trailer `AI-Assisted: Claude Code`.
 - Por cada tarea, anadir una entrada en AI_USAGE.md: fecha, herramienta, resumen del prompt, que se genero, que se modifico a mano y commit asociado.
+- El usuario ha pedido que Claude no aparezca en el GitHub publico del proyecto: ningun commit lleva `Co-Authored-By` y ningun PR lleva pie de "Generated with Claude Code". El trailer `AI-Assisted: Claude Code` se mantiene porque lo exige este documento y la memoria de la asignatura.
 
 ## Hitos
 - H0 Laboratorio (VirtualBox, red interna labnet: deception-central 10.0.0.5, victima-01 10.0.0.10, victima-02 10.0.0.11, kali-lab 10.0.0.20)
@@ -86,7 +87,9 @@ Riesgo conocido para Windows (no resolver ahora): los deception hosts corren en 
 - Opcional, solo si sobra tiempo tras H4 y el profesor lo aprueba: soporte Windows (WindowsProfiler, catalogo de breadcrumbs y backend de contencion)
 
 ## Estado actual
-Desarrollo en un unico portatil (sin la torre del laboratorio por ahora). Se empieza por el esqueleto del repo y por H1. Las pruebas de integracion contra VMs las ejecuta el usuario en VirtualBox; el agente no tiene acceso al laboratorio.
+Desarrollo repartido entre un portatil y la torre del laboratorio; el agente no tiene acceso remoto a ninguno de los dos ni a las VMs, asi que el usuario ejecuta a mano cualquier comando contra el laboratorio. Las sesiones S0-S7 (esqueleto, modelos, inventario, parsers, nmap, perfilado SSH orquestado, breadcrumbs, verificador) estan fusionadas en `main`. En curso: S6 (generador determinista, PR #12, bloqueado solo por falta de aprobacion de merge, CI en verde) y S8 (capa de LLM, PR #13 en borrador, solo tests, pendiente de aprobacion antes de implementar). Ver docs/PLAN.md para el resto de sesiones y su estado.
+
+Al retomar en una maquina nueva (torre o portatil): `git fetch origin`, revisar `gh pr list --state open` para ver los PR pendientes, y crear el entorno con Python 3.12 (`python -m venv .venv` + `pip install -e ".[dev]"`); el repo fija `requires-python = ">=3.12,<3.13"`.
 
 ## Idioma
 Codigo, identificadores y commits en ingles; docstrings y documentacion en espanol.
