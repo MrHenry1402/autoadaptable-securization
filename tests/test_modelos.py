@@ -5,7 +5,13 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from securization.modelos import Fingerprint, HostProfile, OsFamily, ServiceInfo
+from securization.modelos import (
+    Fingerprint,
+    HostProfile,
+    OsFamily,
+    PlausibilityReport,
+    ServiceInfo,
+)
 
 
 def perfil_valido(**cambios: Any) -> dict[str, Any]:
@@ -127,3 +133,46 @@ def test_precision_del_os_fuera_de_rango(precision: int) -> None:
 def test_huella_rechaza_campos_extra() -> None:
     with pytest.raises(ValidationError):
         Fingerprint.model_validate(huella_valida(extra="no"))
+
+
+# --- PlausibilityReport -----------------------------------------------------
+
+
+def informe_valido(**cambios: Any) -> dict[str, Any]:
+    datos: dict[str, Any] = {
+        "score": 85,
+        "threshold": 90,
+        "passed": False,
+        "differences": ["falta el servicio 80/tcp (http) que sí tiene el host real"],
+    }
+    datos.update(cambios)
+    return datos
+
+
+def test_plausibility_report_valido_ida_y_vuelta_json() -> None:
+    informe = PlausibilityReport.model_validate(informe_valido())
+    assert PlausibilityReport.model_validate_json(informe.model_dump_json()) == informe
+
+
+def test_plausibility_report_es_inmutable() -> None:
+    informe = PlausibilityReport.model_validate(informe_valido())
+    with pytest.raises(ValidationError):
+        informe.score = 100  # type: ignore[misc]
+
+
+def test_plausibility_report_rechaza_campos_extra() -> None:
+    with pytest.raises(ValidationError):
+        PlausibilityReport.model_validate(informe_valido(extra="no"))
+
+
+@pytest.mark.parametrize("campo", ["score", "threshold"])
+@pytest.mark.parametrize("valor", [-1, 101])
+def test_plausibility_report_score_y_umbral_en_rango_0_100(campo: str, valor: int) -> None:
+    with pytest.raises(ValidationError):
+        PlausibilityReport.model_validate(informe_valido(**{campo: valor}))
+
+
+def test_plausibility_report_differences_por_defecto_vacio() -> None:
+    datos = informe_valido()
+    del datos["differences"]
+    assert PlausibilityReport.model_validate(datos).differences == []

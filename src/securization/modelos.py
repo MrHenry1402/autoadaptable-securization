@@ -48,6 +48,15 @@ class Fingerprint(_Modelo):
     services: list[ServiceInfo] = Field(default_factory=list)
 
 
+class PlausibilityReport(_Modelo):
+    """Resultado de comparar la huella de un señuelo con la de un host real."""
+
+    score: int = Field(ge=0, le=100)
+    threshold: int = Field(ge=0, le=100)
+    passed: bool
+    differences: list[str] = Field(default_factory=list)
+
+
 class HostProfile(_Modelo):
     """Perfil de un host registrado: SO, servicios, directorios e IPs libres."""
 
