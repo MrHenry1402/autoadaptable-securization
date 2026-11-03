@@ -85,3 +85,10 @@ los commits con código generado llevan el trailer `AI-Assisted: Claude Code`.
 - **Que se genero:** tests/test_generador_campanas.py, build_opencanary_config, DecoyConfig, Campaign y build_campaign en src/securization/generador.py.
 - **Que se modifico a mano:** tests aprobados por el usuario antes de implementar; dos ajustes tras el mypy strict (reexport explicito de UnsupportedOsFamilyError y un test de campos extra pasado a model_validate en vez de kwargs).
 - **Commit(s):** ver el PR de la rama feature/s6-generador-campanas.
+
+### 2026-11-03 - S8 (en curso): capa de LLM y propuesta de hostname del señuelo
+- **Herramienta:** Claude Code (Claude Sonnet 5)
+- **Resumen del prompt:** "adelante, nos ponemos con ello" (tras aprobar seguir con S8 según el PLAN): implementar la interfaz `LlmClient` del PLAN (saneado del perfil en JSON delimitado y truncado sin caracteres de control, seudonimización de IPs, validación con Pydantic estricto y plantilla de respaldo marcada como menor calidad, cliente falso en tests), y como primer caso de uso concreto la propuesta de hostname del señuelo. Tests primero.
+- **Qué se generó:** tests/test_llm.py, tests/test_generador_identidad.py y `GenerationQuality` en modelos.py. Todavía no hay implementación (`src/securization/llm.py` no existe).
+- **Qué se modificó a mano:** ninguno todavía; **pendiente de aprobación del usuario antes de implementar** (ver PR). La CI del PR falla a propósito por eso (módulo sin implementar), no es un error.
+- **Commit(s):** ver el PR en borrador #13, rama feature/s8-llm-client (apilada sobre feature/s6-generador-campanas, PR #12, aún sin fusionar).
