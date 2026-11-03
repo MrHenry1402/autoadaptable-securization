@@ -78,3 +78,10 @@ los commits con código generado llevan el trailer `AI-Assisted: Claude Code`.
 - **Qué se generó:** tests/test_verificador.py, ampliación de tests/test_modelos.py (PlausibilityReport), src/securization/verificador.py y el modelo PlausibilityReport en modelos.py.
 - **Qué se modificó a mano:** tests aprobados por el usuario antes de implementar; implementación pendiente de revisión. No se encontraron errores en el código de S1-S5 durante la revisión.
 - **Commit(s):** ver el PR de la rama feature/s7-verificador.
+
+### 2026-11-03 - Traspaso portátil → torre y aclaración de atribución de IA
+- **Herramienta:** Claude Code (Claude Sonnet 5)
+- **Resumen del prompt:** varios prompts cortos de continuidad ("continua con el plan, revisa todo lo hecho anteriormente...", "que mas falta?", "podemos continuar?") y, al final, "todo esto esta hecho desde el portatil, puedes dejar todo preparado para que continue en la torre?": revisar sin errores el código ya fusionado de S1-S5, y dejar el repositorio en un estado recuperable desde otra máquina.
+- **Qué se generó:** este PR (rama docs/claude-md-estado-y-atribucion): actualiza el "Estado actual" de CLAUDE.md (trabajo repartido entre portátil y torre, qué hay fusionado y qué PR están en curso) y deja explícito que, por petición del usuario, ningún commit ni PR lleva atribución de Claude en GitHub (`Co-Authored-By` o pie de "Generated with Claude Code"); se mantiene el trailer `AI-Assisted: Claude Code` que exige este documento.
+- **Qué se modificó a mano:** ninguno; pendiente de revisión.
+- **Commit(s):** ver este PR (#14).
