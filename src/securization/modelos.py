@@ -57,6 +57,17 @@ class PlausibilityReport(_Modelo):
     differences: list[str] = Field(default_factory=list)
 
 
+class GenerationQuality(StrEnum):
+    """Procedencia de un contenido generado: del LLM o de la plantilla de respaldo.
+
+    CLAUDE.md: si la salida del LLM no valida contra su esquema, se usa la plantilla de
+    respaldo y se marca como de menor calidad. Compartido por los tres usos de IA (S8).
+    """
+
+    AI = "ia"
+    FALLBACK = "respaldo"
+
+
 class HostProfile(_Modelo):
     """Perfil de un host registrado: SO, servicios, directorios e IPs libres."""
 
