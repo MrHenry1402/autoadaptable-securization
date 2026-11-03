@@ -33,7 +33,7 @@ Fuera del MVP: Cowrie, Windows, Scapy, comparación de modelos y la API de Anthr
 - [x] S5 `BreadcrumbCatalog` Linux: plantillas deterministas (.env, backup.sql,
       .bash_history, claves), lista blanca de rutas, sin permisos de ejecución, límite de
       tamaño y comprobación de colisiones contra el inventario
-- [ ] S6 Generador determinista (H2): modelo `Campaign` y configuración de OpenCanary
+- [x] S6 Generador determinista (H2): modelo `Campaign` y configuración de OpenCanary
       desde el perfil, con banners copiados del host real
 - [x] S7 Verificador (H4, parte pura): comparador de huellas, puntuación y umbral
 - [ ] S8 Capa de LLM (H3): interfaz `LlmClient`, saneado del perfil (JSON delimitado,

@@ -158,12 +158,16 @@ def test_build_campaign_es_determinista() -> None:
 # --- Modelos: inmutables y sin campos extra ----------------------------------
 
 
-def test_decoy_config_es_inmutable_y_rechaza_extra() -> None:
+def test_decoy_config_es_inmutable() -> None:
     decoy = DecoyConfig(node_id="x", address=IPv4Address("10.0.0.50"), opencanary_config={})
     with pytest.raises(ValidationError):
         decoy.node_id = "y"  # type: ignore[misc]
+
+
+def test_decoy_config_rechaza_campos_extra() -> None:
+    datos = {"node_id": "x", "address": "10.0.0.50", "opencanary_config": {}, "extra": "no"}
     with pytest.raises(ValidationError):
-        DecoyConfig(node_id="x", address=IPv4Address("10.0.0.50"), opencanary_config={}, extra="no")
+        DecoyConfig.model_validate(datos)
 
 
 def test_campaign_es_inmutable() -> None:
