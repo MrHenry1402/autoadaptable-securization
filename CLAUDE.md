@@ -11,7 +11,7 @@ Contribucion diferencial: bucle cerrado de verificacion de plausibilidad. Tras g
 
 Alcance: SOLO deception. Bastionado y alertado no son fases propias (la alerta existe solo como consecuencia de interactuar con un senuelo). Esta herramienta NO securiza ni modifica la configuracion de los hosts: solo planta breadcrumbs y levanta senuelos. Solo se actua sobre hosts dados de alta explicitamente. Marco de referencia: MITRE Engage.
 
-Alcance de sistema operativo: hosts Linux (Debian 12 en el laboratorio) hasta terminar el H4. Windows es una extension opcional posterior (ver "Soporte multi-SO"). No implementar nada especifico de Windows salvo que un issue lo pida expresamente.
+Alcance de sistema operativo: hosts Linux (Debian 13 en el laboratorio; ver docs/lab-design.md) hasta terminar el H4. Windows es una extension opcional posterior (ver "Soporte multi-SO"). No implementar nada especifico de Windows salvo que un issue lo pida expresamente.
 
 ## Principio de diseno innegociable
 La IA solo genera contenido. Todo lo que toca hosts reales (conexiones, comandos, despliegue, nftables, rutas) lo decide y ejecuta codigo determinista y auditable. Ningun comando se construye con texto procedente del LLM.
@@ -86,7 +86,7 @@ Riesgo conocido para Windows (no resolver ahora): los deception hosts corren en 
 - Opcional, solo si sobra tiempo tras H4 y el profesor lo aprueba: soporte Windows (WindowsProfiler, catalogo de breadcrumbs y backend de contencion)
 
 ## Estado actual
-Desarrollo en un unico portatil (sin la torre del laboratorio por ahora). Se empieza por el esqueleto del repo y por H1. Las pruebas de integracion contra VMs las ejecuta el usuario en VirtualBox; el agente no tiene acceso al laboratorio.
+El laboratorio H0 existe en VirtualBox sobre la torre de desarrollo (ver docs/lab-design.md para la topologia completa: red labnet dedicada, VMs y su estado). El agente tiene acceso a VBoxManage en esa misma maquina para crear y configurar VMs, pero el inicio de sesion por SSH con contrasena dentro de los hosts del laboratorio lo bloquea el propio entorno de ejecucion del agente (se trata como una accion que requiere supervision humana): esa parte sigue siendo manual del usuario.
 
 ## Idioma
 Codigo, identificadores y commits en ingles; docstrings y documentacion en espanol.
