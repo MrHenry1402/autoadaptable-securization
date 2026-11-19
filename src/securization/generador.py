@@ -24,7 +24,14 @@ from typing import ClassVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from securization.modelos import HostProfile, OsFamily
+from securization.llm import (
+    LlmClient,
+    build_profile_payload,
+    generate_with_fallback,
+    render_untrusted_block,
+)
+from securization.modelos import GenerationQuality, HostProfile, OsFamily
+from securization.parsing import sanitize_text
 from securization.perfilador import UnsupportedOsFamilyError as UnsupportedOsFamilyError
 
 MAX_BREADCRUMB_SIZE = 4096
@@ -265,4 +272,46 @@ def build_campaign(
         host_id=profile.host_id,
         decoy=decoy,
         breadcrumbs=breadcrumbs,
+    )
+
+
+class DecoyIdentity(BaseModel):
+    """Hostname propuesto para el deception host (componente de IA: S8)."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    hostname: str
+
+
+def _decoy_hostname_fallback(profile: HostProfile) -> DecoyIdentity:
+    """Plantilla de respaldo determinista: `<host_id>-decoy`, sin IA."""
+    return DecoyIdentity(hostname=f"{profile.host_id}-decoy")
+
+
+async def propose_decoy_hostname(
+    profile: HostProfile, client: LlmClient
+) -> tuple[DecoyIdentity, GenerationQuality]:
+    """Propone un hostname plausible para el señuelo a partir del perfil del host real.
+
+    El LLM solo propone texto; nunca decide a qué host conectarse ni ejecuta nada. El
+    `host_id` y el sistema operativo viajan en claro (no son datos personales ni
+    credenciales) para que el modelo pueda inferir la convención de nombres del entorno; el
+    resto del perfil va seudonimizado y delimitado, igual que para cualquier otro uso del
+    LLM. Si el LLM falla o su salida no valida, se usa la plantilla de respaldo.
+    """
+    payload, _ = build_profile_payload(profile)
+    bloque_perfil = render_untrusted_block(payload)
+    host_id = sanitize_text(profile.host_id)
+    os_name = sanitize_text(profile.os_name)
+    prompt = (
+        "Propón un hostname de servidor plausible para un señuelo (deception host) que "
+        "debe encajar con el resto de la red de este host real. Responde solo JSON con la "
+        'forma {"hostname": "..."}.\n'
+        f"host_id del host real (solo para inferir la convención de nombres, no lo copies "
+        f"tal cual): {host_id}\n"
+        f"Sistema operativo: {os_name}\n"
+        f"{bloque_perfil}"
+    )
+    return await generate_with_fallback(
+        client, prompt, DecoyIdentity, lambda: _decoy_hostname_fallback(profile)
     )

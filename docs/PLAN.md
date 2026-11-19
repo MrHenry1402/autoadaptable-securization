@@ -36,7 +36,7 @@ Fuera del MVP: Cowrie, Windows, Scapy, comparación de modelos y la API de Anthr
 - [x] S6 Generador determinista (H2): modelo `Campaign` y configuración de OpenCanary
       desde el perfil, con banners copiados del host real
 - [x] S7 Verificador (H4, parte pura): comparador de huellas, puntuación y umbral
-- [ ] S8 Capa de LLM (H3): interfaz `LlmClient`, saneado del perfil (JSON delimitado,
+- [x] S8 Capa de LLM (H3): interfaz `LlmClient`, saneado del perfil (JSON delimitado,
       truncado, sin caracteres de control), seudonimización de IPs y dominios, validación
       con Pydantic estricto y plantilla de respaldo marcada como menor calidad. Cliente
       falso en tests
