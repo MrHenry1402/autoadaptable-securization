@@ -106,3 +106,10 @@ los commits con código generado llevan el trailer `AI-Assisted: Claude Code`.
 - **Qué se generó:** tests/test_desplegador.py y, en src/securization/desplegador.py, `DeploymentAction`, `DeploymentPlan` (con la propiedad `ready_to_deploy`), `PlausibilityThresholdError`, `build_deployment_plan` y `approve_plan`.
 - **Qué se modificó a mano:** ninguno; ruff, mypy --strict, bandit y pytest --cov (100% en desplegador.py) en verde antes de abrir el PR.
 - **Commit(s):** ver el PR de la rama feature/s9-plan-despliegue.
+
+### 2026-11-19 - S10: eventos de OpenCanary y correlación por campaña
+- **Herramienta:** Claude Code (Claude Sonnet 5)
+- **Resumen del prompt:** continuar avanzando (en paralelo a preparar victima-02 en el laboratorio): implementar S10 del PLAN (parser de logs de OpenCanary, modelo de acceso a breadcrumb y correlación por campaña mediante `CampaignIndex`), tests primero. El esquema de log de OpenCanary se tomó de su documentación pública, no de una instalación real (sin laboratorio para verificarlo en esta sesión).
+- **Qué se generó:** tests/test_eventos.py y, en src/securization/eventos.py, `OpenCanaryEvent`, `BreadcrumbAccessEvent`, `CorrelatedEvent`, `UnknownCampaignError`, `parse_opencanary_log` y `CampaignIndex`.
+- **Qué se modificó a mano:** ninguno; ruff, mypy --strict, bandit y pytest --cov (100% en eventos.py) en verde antes de abrir el PR.
+- **Commit(s):** ver el PR de la rama feature/s10-eventos.
