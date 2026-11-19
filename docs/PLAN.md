@@ -44,7 +44,7 @@ Fuera del MVP: Cowrie, Windows, Scapy, comparación de modelos y la API de Anthr
       (`DeploymentPlan`); nunca sobrescribe ficheros; sin aprobación no se despliega
 - [x] S10 Eventos: parser de logs de OpenCanary, accesos a breadcrumbs y correlación por
       campaña
-- [ ] S11 Respuesta: modos observación, contención y escalado; reglas de nftables como
+- [x] S11 Respuesta: modos observación, contención y escalado; reglas de nftables como
       lista de argumentos (revisión línea a línea)
 - [ ] S12 CLI del orquestador que une todo en modo simulación, y bucle de ajuste con el
       asistente (H4)
