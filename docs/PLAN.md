@@ -50,8 +50,13 @@ Fuera del MVP: Cowrie, Windows, Scapy, comparación de modelos y la API de Anthr
       asistente (H4) — núcleo de orquestación hecho y probado (`run_campaign_simulation`);
       falta el `main()` de línea de comandos de verdad, aparcado hasta que también exista
       la ejecución real de nmap (fuera de lo descrito para S12)
-- [ ] S13 Dashboard mínimo (FastAPI, Jinja2, HTMX): inventario, campañas, puntuaciones,
-      eventos y aprobación
+- [x] S13 Dashboard mínimo (FastAPI, Jinja2, HTMX): inventario, campañas, puntuaciones,
+      eventos y aprobación — `CampaignStore`/`DeploymentPlanStore` (persistencia en SQLite,
+      mismo patrón que `HostProfileStore`), `DeploymentPlan.differences` (motivo de la
+      puntuación), rutas `/`, `/hosts`, `/hosts/{id}`, `/campaigns`, `/campaigns/{id}`,
+      `POST /campaigns/{id}/approve` (usa `approve_plan`, respeta el umbral) y `/events`
+      como aviso honesto (sin datos simulados; pendiente de L3). Probado con
+      `TestClient` y arrancado de verdad con `uvicorn` contra el navegador.
 
 ## Sesiones con laboratorio (las valida el usuario en VirtualBox)
 

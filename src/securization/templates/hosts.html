@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}securization - hosts{% endblock %}
+{% block content %}
+<h1>Hosts registrados</h1>
+{% if hosts %}
+<table>
+  <thead><tr><th>host_id</th><th>dirección</th><th>SO</th><th>usuario SSH</th></tr></thead>
+  <tbody>
+  {% for host in hosts %}
+    <tr>
+      <td><a href="/hosts/{{ host.host_id }}">{{ host.host_id }}</a></td>
+      <td>{{ host.address }}</td>
+      <td>{{ host.os_family }}</td>
+      <td>{{ host.ssh_user }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No hay hosts dados de alta todavía.</p>
+{% endif %}
+{% endblock %}

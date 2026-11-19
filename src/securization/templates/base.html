@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>{% block title %}securization{% endblock %}</title>
+  <script src="https://unpkg.com/htmx.org@2.0.3"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; color: #1a1a1a; }
+    nav { background: #1a1a2e; padding: 0.75rem 1.5rem; }
+    nav a { color: #e8e8f0; text-decoration: none; margin-right: 1.5rem; font-weight: 600; }
+    nav a:hover { color: #8f9eff; }
+    main { padding: 1.5rem; max-width: 960px; margin: 0 auto; }
+    table { border-collapse: collapse; width: 100%; margin-top: 0.5rem; }
+    th, td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid #ddd; }
+    .badge { padding: 0.15rem 0.5rem; border-radius: 0.3rem; font-size: 0.85rem; }
+    .badge-ok { background: #d8f5d8; color: #1a5c1a; }
+    .badge-pending { background: #fde8c8; color: #8a5a00; }
+    .badge-fail { background: #fbd4d4; color: #8a1a1a; }
+    .warning { background: #fff3cd; border: 1px solid #e0c060; padding: 0.75rem; border-radius: 0.4rem; }
+    .error { background: #fbd4d4; border: 1px solid #d08080; padding: 0.75rem; border-radius: 0.4rem; }
+    a.card { display: block; background: #f4f4f8; border-radius: 0.5rem; padding: 1rem; margin-bottom: 0.75rem; text-decoration: none; color: inherit; }
+    a.card:hover { background: #e8e8f4; }
+    .stat { display: inline-block; margin-right: 2rem; }
+    .stat .n { font-size: 2rem; font-weight: 700; display: block; }
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="/">Resumen</a>
+    <a href="/hosts">Hosts</a>
+    <a href="/campaigns">Campañas</a>
+    <a href="/events">Eventos</a>
+  </nav>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

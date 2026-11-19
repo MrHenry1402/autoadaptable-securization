@@ -15,7 +15,10 @@ umbral.
 
 from collections.abc import Iterable
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy import Engine
+from sqlmodel import Field as SqlField
+from sqlmodel import Session, SQLModel, select
 
 from securization.generador import Campaign, check_collisions
 from securization.modelos import PlausibilityReport
@@ -23,6 +26,10 @@ from securization.modelos import PlausibilityReport
 
 class PlausibilityThresholdError(Exception):
     """El informe de plausibilidad no supera el umbral: el plan no se puede aprobar."""
+
+
+class DeploymentPlanNotFoundError(Exception):
+    """No hay un plan de despliegue guardado con ese `campaign_id`."""
 
 
 class DeploymentAction(BaseModel):
@@ -45,6 +52,7 @@ class DeploymentPlan(BaseModel):
     actions: list[DeploymentAction]
     plausibility_score: int
     plausibility_threshold: int
+    differences: list[str] = Field(default_factory=list)
     approved: bool = False
 
     @property
@@ -75,6 +83,7 @@ def build_deployment_plan(
         actions=actions,
         plausibility_score=plausibility.score,
         plausibility_threshold=plausibility.threshold,
+        differences=plausibility.differences,
     )
 
 
@@ -86,3 +95,46 @@ def approve_plan(plan: DeploymentPlan) -> DeploymentPlan:
             f"umbral {plan.plausibility_threshold}, no se puede aprobar"
         )
     return plan.model_copy(update={"approved": True})
+
+
+class _DeploymentPlanRecord(SQLModel, table=True):
+    """Fila con el `DeploymentPlan` completo, serializado en JSON."""
+
+    __tablename__ = "deployment_plan"
+
+    campaign_id: str = SqlField(primary_key=True)
+    plan_json: str
+
+
+class DeploymentPlanStore:
+    """Guarda y recupera planes de despliegue en la base de datos, para el dashboard (S13)."""
+
+    def __init__(self, engine: Engine) -> None:
+        self._engine = engine
+        SQLModel.metadata.create_all(engine)
+
+    def save(self, plan: DeploymentPlan) -> None:
+        """Guarda el plan; si ya había uno con ese `campaign_id`, lo sustituye."""
+        payload = plan.model_dump_json()
+        with Session(self._engine) as session:
+            registro = session.get(_DeploymentPlanRecord, plan.campaign_id)
+            if registro is None:
+                registro = _DeploymentPlanRecord(campaign_id=plan.campaign_id, plan_json=payload)
+            else:
+                registro.plan_json = payload
+            session.add(registro)
+            session.commit()
+
+    def load(self, campaign_id: str) -> DeploymentPlan:
+        """Recupera el plan guardado o falla con un error claro."""
+        with Session(self._engine) as session:
+            registro = session.get(_DeploymentPlanRecord, campaign_id)
+        if registro is None:
+            raise DeploymentPlanNotFoundError(campaign_id)
+        return DeploymentPlan.model_validate_json(registro.plan_json)
+
+    def list_all(self) -> list[DeploymentPlan]:
+        """Todos los planes de despliegue guardados."""
+        with Session(self._engine) as session:
+            registros = session.exec(select(_DeploymentPlanRecord)).all()
+        return [DeploymentPlan.model_validate_json(registro.plan_json) for registro in registros]

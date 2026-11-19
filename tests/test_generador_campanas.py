@@ -5,12 +5,17 @@ elección de nombre y servicios "creíbles" por IA llega en S8; aquí solo hay p
 """
 
 from ipaddress import IPv4Address
+from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
+from sqlalchemy import Engine
+from sqlmodel import create_engine
 
 from securization.generador import (
     Campaign,
+    CampaignNotFoundError,
+    CampaignStore,
     DecoyConfig,
     UnsupportedOsFamilyError,
     build_campaign,
@@ -185,3 +190,49 @@ def test_campaign_rechaza_campos_extra() -> None:
 def test_campaign_ida_y_vuelta_json() -> None:
     original = campana()
     assert Campaign.model_validate_json(original.model_dump_json()) == original
+
+
+# --- CampaignStore -------------------------------------------------------------
+
+
+@pytest.fixture
+def engine(tmp_path: Path) -> Engine:
+    return create_engine(f"sqlite:///{tmp_path / 'campanas.db'}")
+
+
+def test_campaign_store_guarda_y_recupera_la_campana(engine: Engine) -> None:
+    store = CampaignStore(engine)
+    store.save(campana())
+    assert store.load("campana-01") == campana()
+
+
+def test_campaign_store_guardar_dos_veces_actualiza_en_vez_de_duplicar(engine: Engine) -> None:
+    store = CampaignStore(engine)
+    store.save(campana())
+    actualizada = campana(decoy_node_id="victima-01-decoy-2")
+    store.save(actualizada)
+    assert store.load("campana-01") == actualizada
+
+
+def test_campaign_store_cargar_sin_campana_falla_con_error_claro(engine: Engine) -> None:
+    store = CampaignStore(engine)
+    with pytest.raises(CampaignNotFoundError, match="campana-01"):
+        store.load("campana-01")
+
+
+def test_campaign_store_persiste_entre_instancias(engine: Engine) -> None:
+    CampaignStore(engine).save(campana())
+    otro_store = CampaignStore(engine)
+    assert otro_store.load("campana-01") == campana()
+
+
+def test_campaign_store_list_all_devuelve_todas_las_campanas(engine: Engine) -> None:
+    store = CampaignStore(engine)
+    store.save(campana())
+    store.save(campana(campaign_id="campana-02"))
+    campaign_ids = {c.campaign_id for c in store.list_all()}
+    assert campaign_ids == {"campana-01", "campana-02"}
+
+
+def test_campaign_store_list_all_vacio_si_no_hay_campanas(engine: Engine) -> None:
+    assert CampaignStore(engine).list_all() == []
