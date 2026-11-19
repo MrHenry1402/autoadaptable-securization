@@ -78,3 +78,10 @@ los commits con código generado llevan el trailer `AI-Assisted: Claude Code`.
 - **Qué se generó:** tests/test_verificador.py, ampliación de tests/test_modelos.py (PlausibilityReport), src/securization/verificador.py y el modelo PlausibilityReport en modelos.py.
 - **Qué se modificó a mano:** tests aprobados por el usuario antes de implementar; implementación pendiente de revisión. No se encontraron errores en el código de S1-S5 durante la revisión.
 - **Commit(s):** ver el PR de la rama feature/s7-verificador.
+
+### 2026-11-19 - L1: transporte SSH real (AsyncSshTransport, asyncssh)
+- **Herramienta:** Claude Code (Claude Sonnet 5)
+- **Resumen del prompt:** implementar la interfaz `SshTransport` sobre asyncssh (sesión L1 del PLAN) y usarla para perfilar un host real del laboratorio; tests primero con `asyncssh.connect` sustituido por un doble, sin red.
+- **Qué se generó:** tests/test_ssh_transport.py y `AsyncSshTransport` en src/securization/perfilador.py (no verifica `known_hosts`, justificado en el docstring: las VMs del laboratorio se recrean con clave de host distinta cada vez).
+- **Qué se modificó a mano:** ninguno; ruff, mypy --strict, bandit y pytest --cov (100% en perfilador.py) en verde. Validado además contra un host real del laboratorio (victima-01, 10.0.0.10): `AsyncSshTransport` trajo el `/etc/os-release` real por SSH, con autorización explícita del usuario para que el propio agente hiciera el login SSH en esta sesión. `victima-02` seguía sin estar operativa en el laboratorio a fecha de esta entrada, así que L1 queda validado solo contra `victima-01`.
+- **Commit(s):** ver el PR de la rama feature/l1-asyncssh-transport.
