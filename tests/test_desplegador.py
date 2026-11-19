@@ -1,0 +1,140 @@
+"""Tests de `DeploymentPlan` (S9): plan de despliegue en modo simulación.
+
+No hay E/S real aquí (eso es L4): solo construcción del plan, comprobación de colisiones
+de rutas y aprobación manual del operador condicionada al umbral de plausibilidad (S7).
+"""
+
+from ipaddress import IPv4Address
+
+import pytest
+from pydantic import ValidationError
+
+from securization.desplegador import (
+    DeploymentAction,
+    DeploymentPlan,
+    PlausibilityThresholdError,
+    approve_plan,
+    build_deployment_plan,
+)
+from securization.generador import Breadcrumb, Campaign, DecoyConfig
+from securization.modelos import PlausibilityReport
+
+CAMPAIGN = Campaign(
+    campaign_id="campana-victima-01",
+    host_id="victima-01",
+    decoy=DecoyConfig(
+        node_id="victima-01-decoy",
+        address=IPv4Address("10.0.0.50"),
+        opencanary_config={"device.node_id": "victima-01-decoy"},
+    ),
+    breadcrumbs=[
+        Breadcrumb(host_id="victima-01", path="/root/.env", content="APP_ENV=production\n"),
+        Breadcrumb(
+            host_id="victima-01",
+            path="/var/backups/backup.sql",
+            content="-- backup\n",
+        ),
+    ],
+)
+
+
+def reporte(score: int = 95, threshold: int = 90) -> PlausibilityReport:
+    return PlausibilityReport(
+        score=score, threshold=threshold, passed=score >= threshold, differences=[]
+    )
+
+
+# --- build_deployment_plan ----------------------------------------------------
+
+
+def test_build_deployment_plan_crea_una_accion_por_breadcrumb() -> None:
+    plan = build_deployment_plan(CAMPAIGN, reporte())
+    assert len(plan.actions) == len(CAMPAIGN.breadcrumbs)
+
+
+def test_build_deployment_plan_copia_ruta_contenido_y_permisos() -> None:
+    plan = build_deployment_plan(CAMPAIGN, reporte())
+    accion = plan.actions[0]
+    breadcrumb = CAMPAIGN.breadcrumbs[0]
+    assert accion.path == breadcrumb.path
+    assert accion.content == breadcrumb.content
+    assert accion.mode == breadcrumb.mode
+
+
+def test_build_deployment_plan_guarda_campaign_id_host_id_y_puntuacion() -> None:
+    plan = build_deployment_plan(CAMPAIGN, reporte(score=95, threshold=90))
+    assert plan.campaign_id == "campana-victima-01"
+    assert plan.host_id == "victima-01"
+    assert plan.plausibility_score == 95
+    assert plan.plausibility_threshold == 90
+
+
+def test_build_deployment_plan_empieza_sin_aprobar() -> None:
+    plan = build_deployment_plan(CAMPAIGN, reporte())
+    assert plan.approved is False
+    assert plan.ready_to_deploy is False
+
+
+def test_build_deployment_plan_se_puede_construir_aunque_no_supere_el_umbral() -> None:
+    # Construir el plan (para poder revisarlo) no es lo mismo que aprobarlo.
+    plan = build_deployment_plan(CAMPAIGN, reporte(score=50, threshold=90))
+    assert plan.approved is False
+
+
+def test_build_deployment_plan_falla_si_colisiona_con_una_ruta_conocida() -> None:
+    with pytest.raises(Exception, match=r"/root/\.env"):
+        build_deployment_plan(CAMPAIGN, reporte(), known_paths=["/root/.env"])
+
+
+# --- approve_plan --------------------------------------------------------------
+
+
+def test_approve_plan_marca_como_aprobado_si_supera_el_umbral() -> None:
+    plan = build_deployment_plan(CAMPAIGN, reporte(score=95, threshold=90))
+    aprobado = approve_plan(plan)
+    assert aprobado.approved is True
+    assert aprobado.ready_to_deploy is True
+
+
+def test_approve_plan_no_modifica_el_plan_original() -> None:
+    plan = build_deployment_plan(CAMPAIGN, reporte(score=95, threshold=90))
+    approve_plan(plan)
+    assert plan.approved is False
+
+
+def test_approve_plan_falla_si_no_supera_el_umbral() -> None:
+    plan = build_deployment_plan(CAMPAIGN, reporte(score=50, threshold=90))
+    with pytest.raises(PlausibilityThresholdError, match="campana-victima-01"):
+        approve_plan(plan)
+
+
+def test_ready_to_deploy_falso_si_aprobado_pero_bajo_el_umbral() -> None:
+    # No debería poder darse (approve_plan lo impide), pero ready_to_deploy es la
+    # comprobación final: nunca listo si la puntuación no supera el umbral, pase lo que pase.
+    plan = build_deployment_plan(CAMPAIGN, reporte(score=50, threshold=90))
+    plan_manipulado = plan.model_copy(update={"approved": True})
+    assert plan_manipulado.ready_to_deploy is False
+
+
+# --- Modelos ---------------------------------------------------------------------
+
+
+def test_deployment_action_rechaza_campos_extra() -> None:
+    with pytest.raises(ValidationError):
+        DeploymentAction.model_validate(
+            {"path": "/root/.env", "content": "x", "mode": 0o600, "extra": "no"}
+        )
+
+
+def test_deployment_plan_rechaza_campos_extra() -> None:
+    with pytest.raises(ValidationError):
+        DeploymentPlan.model_validate(
+            {
+                "campaign_id": "c",
+                "host_id": "h",
+                "actions": [],
+                "plausibility_score": 0,
+                "plausibility_threshold": 90,
+                "extra": "no",
+            }
+        )

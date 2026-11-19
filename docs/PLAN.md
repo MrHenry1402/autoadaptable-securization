@@ -40,7 +40,7 @@ Fuera del MVP: Cowrie, Windows, Scapy, comparación de modelos y la API de Anthr
       truncado, sin caracteres de control), seudonimización de IPs y dominios, validación
       con Pydantic estricto y plantilla de respaldo marcada como menor calidad. Cliente
       falso en tests
-- [ ] S9 Plan de despliegue en modo simulación y aprobación manual del operador
+- [x] S9 Plan de despliegue en modo simulación y aprobación manual del operador
       (`DeploymentPlan`); nunca sobrescribe ficheros; sin aprobación no se despliega
 - [ ] S10 Eventos: parser de logs de OpenCanary, accesos a breadcrumbs y correlación por
       campaña

@@ -99,3 +99,10 @@ los commits con código generado llevan el trailer `AI-Assisted: Claude Code`.
 - **Qué se generó:** `src/securization/llm.py` (`LlmClient`, `LlmError`, `PseudonymMap`, `pseudonymize_addresses`, `ProfilePayload`, `build_profile_payload`, `render_untrusted_block`, `generate_with_fallback`) y, en `generador.py`, `DecoyIdentity` + `propose_decoy_hostname` (usa `host_id` y el nombre del SO en claro para que el modelo infiera la convención de nombres, el resto del perfil seudonimizado y delimitado).
 - **Qué se modificó a mano:** ninguno; ruff, mypy --strict, bandit y pytest --cov (100% en llm.py y generador.py) en verde antes de abrir el PR. Un aviso de ruff (`UP047`) llevó a usar la sintaxis de genéricos de PEP 695 (`def generate_with_fallback[T: BaseModel](...)`) en vez de `TypeVar`.
 - **Commit(s):** ver el PR de la rama feature/s8-llm-client.
+
+### 2026-11-19 - S9: plan de despliegue en modo simulación (`DeploymentPlan`)
+- **Herramienta:** Claude Code (Claude Sonnet 5)
+- **Resumen del prompt:** continuar avanzando tras S8: implementar S9 del PLAN (`DeploymentPlan`, aprobación manual del operador condicionada al umbral de plausibilidad de S7, comprobación de colisiones de ruta reutilizando `check_collisions` de S5), tests primero. Sin E/S real: eso es L4.
+- **Qué se generó:** tests/test_desplegador.py y, en src/securization/desplegador.py, `DeploymentAction`, `DeploymentPlan` (con la propiedad `ready_to_deploy`), `PlausibilityThresholdError`, `build_deployment_plan` y `approve_plan`.
+- **Qué se modificó a mano:** ninguno; ruff, mypy --strict, bandit y pytest --cov (100% en desplegador.py) en verde antes de abrir el PR.
+- **Commit(s):** ver el PR de la rama feature/s9-plan-despliegue.
