@@ -120,3 +120,10 @@ los commits con código generado llevan el trailer `AI-Assisted: Claude Code`.
 - **Qué se generó:** tests/test_respuesta.py y, en src/securization/respuesta.py, `ResponseMode`, `ResponseAction`, `build_nftables_block_rule` y `decide_response`. Además, el campo `source_host` en `CorrelatedEvent` (src/securization/eventos.py) y dos tests nuevos en test_eventos.py para cubrirlo.
 - **Qué se modificó a mano:** ninguno; ruff, mypy --strict, bandit y pytest --cov (100% en respuesta.py y eventos.py) en verde antes de abrir el PR. Este módulo decide y construye el comando, pero no ejecuta nada: aplicarlo de verdad contra un host registrado necesita el transporte SSH real (L1) y queda para otra sesión, a propósito, para que la revisión línea a línea de lo que sí toca el firewall se quede en un único sitio pequeño.
 - **Commit(s):** ver el PR de la rama feature/s11-respuesta.
+
+### 2026-11-19 - S12: orquestador en modo simulación con bucle de ajuste (H4)
+- **Herramienta:** Claude Code (Claude Sonnet 5)
+- **Resumen del prompt:** continuar con S12 del PLAN: unir generador (S6), verificador (S7) y desplegador (S9) en una función de orquestación que repite la verificación contra sucesivas huellas candidatas del señuelo —el bucle de ajuste de H4— hasta superar el umbral o agotar los intentos. Tests primero.
+- **Qué se generó:** tests/test_orquestador.py y, en src/securization/orquestador.py, `SimulationResult` y `run_campaign_simulation`.
+- **Qué se modificó a mano:** ninguno; ruff, mypy --strict, bandit y pytest --cov (100% en orquestador.py) en verde antes de abrir el PR. **Decisión de alcance explícita**: no se ha construido el `main()` de línea de comandos (argparse) que menciona el enunciado de S12, porque sin la ejecución real de nmap (fuera de lo descrito para esta sesión) los subcomandos de verificación/despliegue no harían nada de verdad; se deja anotado en docs/PLAN.md para retomarlo cuando exista esa pieza.
+- **Commit(s):** ver el PR de la rama feature/s12-orquestador-cli.
