@@ -4,6 +4,7 @@ No hay E/S real aquí (eso es L4): solo construcción del plan, comprobación de
 de rutas y aprobación manual del operador condicionada al umbral de plausibilidad (S7).
 """
 
+from collections.abc import Sequence
 from ipaddress import IPv4Address
 from pathlib import Path
 
@@ -13,13 +14,17 @@ from sqlalchemy import Engine
 from sqlmodel import create_engine
 
 from securization.desplegador import (
+    BreadcrumbAlreadyExistsError,
     DeploymentAction,
+    DeploymentNotReadyError,
     DeploymentPlan,
     DeploymentPlanNotFoundError,
     DeploymentPlanStore,
     PlausibilityThresholdError,
+    SftpTransport,
     approve_plan,
     build_deployment_plan,
+    plant_breadcrumbs,
 )
 from securization.generador import Breadcrumb, Campaign, DecoyConfig
 from securization.modelos import PlausibilityReport
@@ -208,3 +213,57 @@ def test_deployment_plan_store_list_all_devuelve_todos_los_planes(engine: Engine
 
 def test_deployment_plan_store_list_all_vacio_si_no_hay_planes(engine: Engine) -> None:
     assert DeploymentPlanStore(engine).list_all() == []
+
+
+# --- SftpTransport / plant_breadcrumbs (L4) -------------------------------------
+
+
+class FakeSftpTransport:
+    """Doble de `SftpTransport`: registra los ficheros escritos, puede fallar a propósito."""
+
+    def __init__(self, *, existing: Sequence[str] = ()) -> None:
+        self.written: list[tuple[str, str, int]] = []
+        self._existing = set(existing)
+
+    async def write_file(self, path: str, content: str, mode: int) -> None:
+        if path in self._existing or path in {p for p, _, _ in self.written}:
+            raise BreadcrumbAlreadyExistsError(path)
+        self.written.append((path, content, mode))
+
+
+def plan_listo() -> DeploymentPlan:
+    return approve_plan(build_deployment_plan(CAMPAIGN, reporte(score=95, threshold=90)))
+
+
+def test_fake_sftp_transport_satisface_el_protocolo() -> None:
+    assert isinstance(FakeSftpTransport(), SftpTransport)
+
+
+async def test_plant_breadcrumbs_escribe_cada_accion_del_plan() -> None:
+    plan = plan_listo()
+    transport = FakeSftpTransport()
+    await plant_breadcrumbs(plan, transport)
+    assert transport.written == [(a.path, a.content, a.mode) for a in plan.actions]
+
+
+async def test_plant_breadcrumbs_rechaza_un_plan_no_listo() -> None:
+    plan = build_deployment_plan(CAMPAIGN, reporte(score=50, threshold=90))
+    with pytest.raises(DeploymentNotReadyError, match="campana-victima-01"):
+        await plant_breadcrumbs(plan, FakeSftpTransport())
+
+
+async def test_plant_breadcrumbs_rechaza_un_plan_aprobado_pero_sin_superar_el_umbral() -> None:
+    plan = build_deployment_plan(CAMPAIGN, reporte(score=50, threshold=90))
+    plan_manipulado = plan.model_copy(update={"approved": True})
+    with pytest.raises(DeploymentNotReadyError):
+        await plant_breadcrumbs(plan_manipulado, FakeSftpTransport())
+
+
+async def test_plant_breadcrumbs_se_interrumpe_si_una_ruta_ya_existe() -> None:
+    plan = plan_listo()
+    ruta_existente = plan.actions[-1].path
+    transport = FakeSftpTransport(existing=[ruta_existente])
+    with pytest.raises(BreadcrumbAlreadyExistsError, match=ruta_existente.replace(".", r"\.")):
+        await plant_breadcrumbs(plan, transport)
+    # Las acciones anteriores a la que falló ya se plantaron; no hay vuelta atrás con SFTP.
+    assert len(transport.written) == len(plan.actions) - 1
