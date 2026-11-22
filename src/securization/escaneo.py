@@ -1,11 +1,16 @@
-"""Escaneo con nmap: comandos fijos, parseo de la salida XML y cálculo de IPs libres.
+"""Escaneo con nmap: comandos fijos, parseo de la salida XML, IPs libres y ejecución real.
 
-Este módulo no ejecuta nada: construye los comandos como listas de argumentos validadas y
-convierte la salida XML en modelos. El XML se lee con `defusedxml` y se trata como no confiable.
+La construcción de comandos y el parseo de XML son puros, sin E/S, probados con salidas de
+ejemplo (`tests/fixtures/nmap/`). La E/S real de verdad (lanzar `nmap`) va detrás de la
+interfaz `ProcessRunner` (L2): una implementación falsa en los tests y `AsyncNmapRunner`
+(subprocess real, nunca shell) para cuando haya laboratorio — mismo patrón que `SshTransport`
+en `perfilador.py`. El XML se lee siempre con `defusedxml` y se trata como no confiable.
 """
 
-from collections.abc import Iterable
+import asyncio
+from collections.abc import Iterable, Sequence
 from ipaddress import IPv4Address, IPv4Network
+from typing import Protocol, runtime_checkable
 
 # Solo se usa para anotar tipos; el XML se parsea siempre con defusedxml.
 from xml.etree.ElementTree import Element  # nosec B405
@@ -16,6 +21,10 @@ from defusedxml.ElementTree import fromstring
 
 from securization.modelos import Fingerprint, OsMatch, ServiceInfo
 from securization.parsing import ParseError, sanitize_text
+
+
+class NmapScanError(Exception):
+    """Fallo al escanear un host: el proceso de nmap falló o su salida no es interpretable."""
 
 _MIN_PREFIX = 16
 _BANNER_SCRIPTS = ("banner", "http-server-header")
@@ -166,6 +175,64 @@ def parse_alive_hosts(xml_text: str) -> list[IPv4Address]:
     """Direcciones IPv4 vivas de un barrido `nmap -sn -oX`, ordenadas."""
     vivas = (_host_address(host) for host in _load_nmaprun(xml_text).findall("host"))
     return sorted(direccion for direccion in vivas if direccion is not None)
+
+
+# --- Ejecución real (L2) -----------------------------------------------------
+
+
+@runtime_checkable
+class ProcessRunner(Protocol):
+    """Ejecuta un comando (lista de argumentos) y devuelve su salida estándar.
+
+    Mismo contrato que `SshTransport` en `perfilador.py`, para que todo el proyecto use una
+    sola forma de abstraer "ejecutar un comando externo y darme el stdout".
+    """
+
+    async def run(self, argv: Sequence[str]) -> str:
+        """Ejecuta el comando (lista de argumentos) y devuelve su salida estándar."""
+        ...
+
+
+class AsyncNmapRunner:
+    """Implementación real de `ProcessRunner`: lanza el proceso sin shell (L2)."""
+
+    async def run(self, argv: Sequence[str]) -> str:
+        proceso = await asyncio.create_subprocess_exec(
+            *argv,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await proceso.communicate()
+        if proceso.returncode != 0:
+            error = sanitize_text(stderr.decode(errors="replace").strip())
+            raise NmapScanError(
+                f"nmap terminó con código {proceso.returncode}: {error}"
+            )
+        return stdout.decode(errors="replace")
+
+
+async def scan_host(address: IPv4Address, runner: ProcessRunner) -> Fingerprint:
+    """Escanea un host con `nmap -sV -O` y devuelve su huella.
+
+    Falla con `NmapScanError` si el proceso falla, si la salida no es XML de nmap
+    interpretable, o si la dirección pedida no aparece entre los hosts vivos (nunca
+    devuelve la huella de otro host por error).
+    """
+    comando = build_scan_command(address)
+    try:
+        salida = await runner.run(comando)
+    except NmapScanError:
+        raise
+    except Exception as error:
+        raise NmapScanError(f"fallo al ejecutar nmap contra {address}: {error}") from error
+    try:
+        huellas = parse_nmap_xml(salida)
+    except ParseError as error:
+        raise NmapScanError(f"salida de nmap no interpretable para {address}: {error}") from error
+    for huella in huellas:
+        if huella.address == address:
+            return huella
+    raise NmapScanError(f"{address} no aparece entre los hosts vivos del escaneo")
 
 
 # --- IPs libres -------------------------------------------------------------

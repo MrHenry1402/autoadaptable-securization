@@ -1,16 +1,22 @@
 """Tests del módulo de escaneo: parseo de nmap XML, IPs libres y comandos de nmap."""
 
+import asyncio
+from collections.abc import Sequence
 from ipaddress import IPv4Address
 from pathlib import Path
 
 import pytest
 
 from securization.escaneo import (
+    AsyncNmapRunner,
+    NmapScanError,
+    ProcessRunner,
     build_ping_sweep_command,
     build_scan_command,
     find_free_ips,
     parse_alive_hosts,
     parse_nmap_xml,
+    scan_host,
 )
 from securization.modelos import Fingerprint, OsMatch, ServiceInfo
 from securization.parsing import ParseError
@@ -224,3 +230,115 @@ def test_comando_de_barrido() -> None:
 def test_comando_de_barrido_rechaza_redes_no_validas(red: str) -> None:
     with pytest.raises(ValueError, match="network"):
         build_ping_sweep_command(red)
+
+
+# --- ProcessRunner / AsyncNmapRunner / scan_host (L2) -----------------------
+
+
+class FakeProcessRunner:
+    """Doble de `ProcessRunner`: registra el comando recibido y devuelve salida fija."""
+
+    def __init__(self, stdout: str = "", *, error: Exception | None = None) -> None:
+        self.calls: list[tuple[str, ...]] = []
+        self._stdout = stdout
+        self._error = error
+
+    async def run(self, argv: Sequence[str]) -> str:
+        self.calls.append(tuple(argv))
+        if self._error is not None:
+            raise self._error
+        return self._stdout
+
+
+def test_fake_process_runner_satisface_el_protocolo() -> None:
+    assert isinstance(FakeProcessRunner(), ProcessRunner)
+
+
+async def test_scan_host_construye_el_comando_y_lo_ejecuta() -> None:
+    runner = FakeProcessRunner(stdout=fixture("sv_o_victima01.xml"))
+    await scan_host(IPv4Address("10.0.0.10"), runner)
+    assert runner.calls == [build_scan_command("10.0.0.10")]
+
+
+async def test_scan_host_devuelve_la_huella_de_la_direccion_pedida() -> None:
+    runner = FakeProcessRunner(stdout=fixture("sv_o_victima01.xml"))
+    huella = await scan_host(IPv4Address("10.0.0.10"), runner)
+    assert huella == parse_nmap_xml(fixture("sv_o_victima01.xml"))[0]
+
+
+async def test_scan_host_falla_si_la_direccion_no_aparece_en_la_salida() -> None:
+    runner = FakeProcessRunner(stdout=fixture("sv_o_victima01.xml"))
+    with pytest.raises(NmapScanError, match=r"10\.0\.0\.99"):
+        await scan_host(IPv4Address("10.0.0.99"), runner)
+
+
+async def test_scan_host_propaga_el_fallo_del_runner_como_nmapscanerror() -> None:
+    runner = FakeProcessRunner(error=RuntimeError("nmap: comando no encontrado"))
+    with pytest.raises(NmapScanError, match="comando no encontrado"):
+        await scan_host(IPv4Address("10.0.0.10"), runner)
+
+
+async def test_scan_host_propaga_un_nmapscanerror_del_runner_sin_envolverlo_dos_veces() -> None:
+    runner = FakeProcessRunner(error=NmapScanError("nmap terminó con código 1: host abajo"))
+    with pytest.raises(NmapScanError, match="host abajo"):
+        await scan_host(IPv4Address("10.0.0.10"), runner)
+
+
+async def test_scan_host_falla_con_xml_no_interpretable() -> None:
+    runner = FakeProcessRunner(stdout="esto no es XML de nmap")
+    with pytest.raises(NmapScanError):
+        await scan_host(IPv4Address("10.0.0.10"), runner)
+
+
+class _FakeProcess:
+    """Doble de `asyncio.subprocess.Process`: salida y código de salida fijos."""
+
+    def __init__(self, stdout: bytes, stderr: bytes, returncode: int) -> None:
+        self._stdout = stdout
+        self._stderr = stderr
+        self.returncode = returncode
+
+    async def communicate(self) -> tuple[bytes, bytes]:
+        return self._stdout, self._stderr
+
+
+def test_async_nmap_runner_satisface_el_protocolo() -> None:
+    assert isinstance(AsyncNmapRunner(), ProcessRunner)
+
+
+async def test_async_nmap_runner_ejecuta_sin_shell_y_devuelve_el_stdout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    llamadas: list[tuple[str, ...]] = []
+
+    async def fake_exec(*argv: str, **kwargs: object) -> _FakeProcess:
+        llamadas.append(argv)
+        return _FakeProcess(stdout=b"salida XML\n", stderr=b"", returncode=0)
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+    resultado = await AsyncNmapRunner().run(("nmap", "-sV", "-O", "-oX", "-", "10.0.0.10"))
+    assert resultado == "salida XML\n"
+    assert llamadas == [("nmap", "-sV", "-O", "-oX", "-", "10.0.0.10")]
+
+
+async def test_async_nmap_runner_falla_con_codigo_de_salida_distinto_de_cero(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_exec(*argv: str, **kwargs: object) -> _FakeProcess:
+        return _FakeProcess(stdout=b"", stderr=b"nmap: host inalcanzable\n", returncode=1)
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+    with pytest.raises(NmapScanError, match="host inalcanzable"):
+        await AsyncNmapRunner().run(("nmap", "-sV", "-O", "-oX", "-", "10.0.0.99"))
+
+
+async def test_async_nmap_runner_sanea_el_stderr_del_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_exec(*argv: str, **kwargs: object) -> _FakeProcess:
+        return _FakeProcess(stdout=b"", stderr=b"error\x07con\x07control", returncode=1)
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+    with pytest.raises(NmapScanError) as excinfo:
+        await AsyncNmapRunner().run(("nmap",))
+    assert "\x07" not in str(excinfo.value)
