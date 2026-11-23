@@ -279,8 +279,9 @@ async def start_decoy(
 ) -> str:
     """Arranca (o relanza) el señuelo en deception-central y devuelve el nombre del contenedor.
 
-    Es el arranque que necesita el bucle de verificación para poder escanear el señuelo en
-    el laboratorio; el despliegue definitivo, con aprobación, es `deploy_decoy`. Renderiza
+    Es el arranque que necesita el bucle de verificación para poder escanear el señuelo, y
+    no exige aprobación: excepción admitida en CLAUDE.md solo para el laboratorio aislado.
+    Fuera del laboratorio se usa siempre `deploy_decoy`, que exige el plan aprobado. Renderiza
     y valida el config antes de tocar nada, lo sube por SFTP y sustituye el contenedor.
     """
     conf = render_opencanary_conf(decoy.opencanary_config)

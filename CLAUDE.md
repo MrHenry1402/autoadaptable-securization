@@ -59,7 +59,8 @@ Riesgo conocido para Windows (no resolver ahora): los deception hosts corren en 
 - Los datos del perfil que van al LLM se tratan como no confiables (prompt injection indirecta): viajan como JSON en campo delimitado, truncados y sin caracteres de control. El modelo no tiene herramientas.
 - Al LLM nunca se envia: contenido de ficheros reales, credenciales reales, nombres de usuarios reales ni datos personales. IPs y dominios internos se seudonimizan antes de enviar.
 - Los banners de los senuelos se copian de hosts reales, no los inventa el modelo.
-- Ningun senuelo se despliega sin superar el umbral de plausibilidad y sin aprobacion manual del operador (modo simulacion primero).
+- Ningun senuelo se despliega sin superar el umbral de plausibilidad y sin aprobacion manual del operador (modo simulacion primero). El despliegue definitivo es `deploy_decoy`, que exige el plan aprobado.
+- Unica excepcion, solo en el laboratorio aislado: `start_decoy` puede arrancar un senuelo sin aprobacion para que el bucle de verificacion lo escanee (no se puede puntuar un senuelo apagado). Fuera del laboratorio, siempre `deploy_decoy`.
 - Tipado completo (mypy) y async donde haya E/S de red.
 
 ## Flujo de trabajo
@@ -86,7 +87,7 @@ Riesgo conocido para Windows (no resolver ahora): los deception hosts corren en 
 - Opcional, solo si sobra tiempo tras H4 y el profesor lo aprueba: soporte Windows (WindowsProfiler, catalogo de breadcrumbs y backend de contencion)
 
 ## Estado actual
-Desarrollo en un unico portatil (sin la torre del laboratorio por ahora). Se empieza por el esqueleto del repo y por H1. Las pruebas de integracion contra VMs las ejecuta el usuario en VirtualBox; el agente no tiene acceso al laboratorio.
+Desarrollo y laboratorio (VirtualBox, red interna labnet) ya en la torre. El agente tiene permiso explicito del usuario para conectarse por SSH a las VMs del laboratorio y gestionarlas (VBoxManage, aprovisionamiento, diagnostico) directamente desde esta maquina.
 
 ## Idioma
 Codigo, identificadores y commits en ingles; docstrings y documentacion en espanol.
