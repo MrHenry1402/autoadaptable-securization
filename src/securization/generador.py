@@ -11,14 +11,16 @@ servicios y banners del perfil a una configuración de OpenCanary, y `build_camp
 empaqueta junto con los breadcrumbs en un `Campaign`. El nombre y la dirección del señuelo
 los decide quien llame a `build_campaign`; adivinar la convención de nombres con IA es la S8.
 
-Aviso: los nombres de clave de OpenCanary (`<módulo>.enabled`, `<módulo>.port`, el banner)
-están tomados de memoria del formato de `canary.conf` y no se han comprobado contra una
-instalación real. Antes de desplegar de verdad (L3), hay que verificarlos contra la versión
-de OpenCanary del laboratorio.
+Los nombres de clave de OpenCanary están comprobados (L3) contra el config por defecto de
+la imagen oficial `thinkst/opencanary` (OpenCanary 0.9.10), guardado en
+`securization/data/opencanary_base.json`, y contra un señuelo real en el laboratorio.
 """
 
+import json
+import re
 from abc import ABC, abstractmethod
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
+from importlib import resources
 from ipaddress import IPv4Address
 from typing import ClassVar
 
@@ -33,22 +35,28 @@ from securization.llm import (
     generate_with_fallback,
     render_untrusted_block,
 )
-from securization.modelos import GenerationQuality, HostProfile, OsFamily
+from securization.modelos import GenerationQuality, HostProfile, OsFamily, ServiceInfo
 from securization.parsing import sanitize_text
 from securization.perfilador import UnsupportedOsFamilyError as UnsupportedOsFamilyError
 
 MAX_BREADCRUMB_SIZE = 4096
 
-# service.name (tal como lo da nmap/ss) -> (módulo de OpenCanary, clave del banner).
-# Solo los módulos con una correspondencia clara y bien documentada; smb y rdp se quedan
-# fuera porque nmap los nombra de forma menos uniforme (microsoft-ds, ms-wbt-server, ...).
-_OPENCANARY_MODULES: dict[str, tuple[str, str]] = {
+# service.name (tal como lo da nmap) -> (módulo de OpenCanary, clave del banner o None).
+# Claves comprobadas contra el config por defecto de OpenCanary 0.9.10
+# (`securization/data/opencanary_base.json`, sacado de la imagen oficial). Solo módulos con
+# una correspondencia clara; smb y rdp se quedan fuera porque nmap los nombra de forma
+# menos uniforme (microsoft-ds, ms-wbt-server, ...).
+_OPENCANARY_MODULES: dict[str, tuple[str, str | None]] = {
     "ssh": ("ssh", "version"),
     "ftp": ("ftp", "banner"),
     "http": ("http", "banner"),
-    "mysql": ("mysql", "banner"),
+    # `mysql.banner` es la versión del servidor, no el saludo que captura nmap.
+    "mysql": ("mysql", None),
+    "redis": ("redis", None),
     "telnet": ("telnet", "banner"),
 }
+_OPENCANARY_BASE = "data/opencanary_base.json"
+_FTP_CODE = re.compile(r"^220[ -]")
 
 _LINUX_WHITELIST_DIRS: tuple[str, ...] = ("/home", "/root", "/var/backups")
 _LINUX_HOME_FALLBACK = "/home/admin"
@@ -207,17 +215,32 @@ def get_catalog(os_family: OsFamily) -> BreadcrumbCatalog:
         raise UnsupportedOsFamilyError(f"os_family no soportado: {os_family}") from None
 
 
+def _opencanary_banner(modulo: str, servicio: ServiceInfo) -> str | None:
+    """Valor de la clave de banner de OpenCanary para un servicio real, o None.
+
+    Cada módulo espera algo distinto: SSH la línea de versión completa, FTP el texto tras
+    el código 220 (OpenCanary ya lo antepone) y HTTP la cabecera `Server`, que nmap no
+    repite en un script cuando ya identificó el producto. Nunca se inventa un valor.
+    """
+    banner = servicio.banner
+    if modulo == "ssh":
+        return banner if banner and banner.startswith("SSH-") else None
+    if modulo == "ftp":
+        return _FTP_CODE.sub("", banner, count=1) if banner else None
+    if modulo == "http" and not banner and servicio.product:
+        sufijo = f"/{servicio.version}" if servicio.version else ""
+        return f"{servicio.product}{sufijo}"
+    return banner
+
+
 def build_opencanary_config(profile: HostProfile, node_id: str) -> dict[str, bool | int | str]:
-    """Configuración de OpenCanary que replica los servicios y banners del perfil.
+    """Claves de OpenCanary que replican los servicios y banners del perfil.
 
     Un banner no capturado no se inventa: el módulo se activa sin esa clave y OpenCanary
     usa el suyo por defecto. Si dos servicios del perfil caen en el mismo módulo, se queda
-    con el de menor puerto.
+    con el de menor puerto. El fichero completo lo genera `render_opencanary_conf`.
     """
-    config: dict[str, bool | int | str] = {
-        "device.node_id": node_id,
-        "ip.autodetect": False,
-    }
+    config: dict[str, bool | int | str] = {"device.node_id": node_id}
     vistos: set[str] = set()
     for servicio in sorted(profile.services, key=lambda s: s.port):
         correspondencia = _OPENCANARY_MODULES.get(servicio.name)
@@ -227,9 +250,28 @@ def build_opencanary_config(profile: HostProfile, node_id: str) -> dict[str, boo
         vistos.add(modulo)
         config[f"{modulo}.enabled"] = True
         config[f"{modulo}.port"] = servicio.port
-        if servicio.banner:
-            config[f"{modulo}.{clave_banner}"] = servicio.banner
+        if clave_banner is not None and (valor := _opencanary_banner(modulo, servicio)):
+            config[f"{modulo}.{clave_banner}"] = valor
     return config
+
+
+def render_opencanary_conf(config: Mapping[str, bool | int | str]) -> str:
+    """Fichero `opencanary.conf` completo (JSON) a partir de las claves del señuelo.
+
+    Parte del config por defecto de OpenCanary 0.9.10, desactiva todos sus módulos (por
+    defecto trae FTP activado) y aplica `config` encima, así que solo quedan activos los
+    módulos que vienen del perfil. Rechaza claves que OpenCanary no conoce, para que una
+    errata no deje un servicio activado o mal configurado sin aviso.
+    """
+    base = json.loads(resources.files("securization").joinpath(_OPENCANARY_BASE).read_text())
+    desconocidas = sorted(set(config) - set(base))
+    if desconocidas:
+        raise ValueError(f"claves que OpenCanary no conoce: {', '.join(desconocidas)}")
+    for clave in base:
+        if clave.endswith(".enabled"):
+            base[clave] = False
+    base.update(config)
+    return json.dumps(base, indent=2, ensure_ascii=False) + "\n"
 
 
 class DecoyConfig(BaseModel):

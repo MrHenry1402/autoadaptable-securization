@@ -64,16 +64,22 @@ Fuera del MVP: Cowrie, Windows, Scapy, comparación de modelos y la API de Anthr
       (validado el 2026-11-23 con `lab/profile_lab.py` contra las dos víctimas, con las
       credenciales del inventario cifrado; los campos de nmap —banner, versión, IPs
       libres— quedan vacíos hasta integrar L2)
-- [ ] L2 Ejecución real de nmap y comparación del señuelo con un host real
-      (implementado y probado con un `ProcessRunner` falso —
-      `AsyncNmapRunner`/`scan_host` en `escaneo.py`—; validado el 2026-11-23 contra
-      victima-01 y victima-02 con Nmap 7.993 + Npcap en la torre, sin elevación, `-O`
-      incluido. `scan_host` acepta ahora `ports` (`-p`, con `profile_tcp_ports` para
-      sacarlos del perfil), porque sin él nmap solo mira los 1000 puertos más comunes y
-      no veía Redis 6379 en victima-02; con los puertos del perfil, nmap y perfil
-      coinciden en las dos víctimas. Pendiente: la comparación con un señuelo real
-      (necesita L3))
-- [ ] L3 Contenedores OpenCanary con macvlan en deception-central
+- [x] L2 Ejecución real de nmap y comparación del señuelo con un host real
+      (`AsyncNmapRunner`/`scan_host` validados el 2026-11-23 con Nmap 7.993 + Npcap en la
+      torre, sin elevación, `-O` incluido. El escaneo cubre los puertos del perfil
+      (`ports`/`profile_tcp_ports`: sin `-p` nmap no veía Redis 6379) y lanza los
+      scripts `banner` y `http-server-header`: sin ellos todos los banners eran `None` y
+      el verificador no detectaba ninguna diferencia. Comparación real con los señuelos
+      de L3: 90/90 en ambas víctimas, con diferencias reales detectadas)
+- [x] L3 Contenedores OpenCanary con macvlan en deception-central
+      (`start_decoy`/`deploy_decoy` en `desplegador.py`, imagen oficial fijada por
+      digest, MAC con OUI de VirtualBox, config completo con `render_opencanary_conf`
+      sobre el config por defecto real de OpenCanary 0.9.10. Validado el 2026-11-23:
+      perfil → `enrich_profile` con nmap → `build_campaign` → `start_decoy` → escaneo →
+      `verify_decoy`. Hallazgos de la línea base H2 para H4: el saludo de MySQL del
+      señuelo revela `5.5.43-0ubuntu0.14.04.1` y Redis no imita el modo protegido;
+      ambos pasan justo en el umbral (90), así que el verificador pesa poco un banner
+      que delata el SO)
 - [ ] L4 Plantado real de breadcrumbs por SFTP y alertas de extremo a extremo
       (la parte de plantado está implementada y probada con un `SftpTransport` falso —
       `AsyncSftpTransport`/`plant_breadcrumbs` en `desplegador.py`, creación exclusiva
