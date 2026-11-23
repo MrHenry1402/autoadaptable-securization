@@ -64,6 +64,9 @@ Fuera del MVP: Cowrie, Windows, Scapy, comparación de modelos y la API de Anthr
       (implementado y validado de verdad contra `victima-01`; falta `victima-02`, que
       sigue sin estar operativa en el laboratorio)
 - [ ] L2 Ejecución real de nmap y comparación del señuelo con un host real
+      (implementado y probado con un `ProcessRunner` falso —
+      `AsyncNmapRunner`/`scan_host` en `escaneo.py`—; validación contra un host y un
+      señuelo reales en VirtualBox pendiente de que el laboratorio esté operativo)
 - [ ] L3 Contenedores OpenCanary con macvlan en deception-central
 - [ ] L4 Plantado real de breadcrumbs por SFTP y alertas de extremo a extremo
 - [ ] L5 Ollama: modelo local y tasa de salidas válidas
