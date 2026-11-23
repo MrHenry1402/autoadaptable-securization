@@ -19,7 +19,7 @@ from defusedxml import DefusedXmlException
 from defusedxml.ElementTree import ParseError as XmlParseError
 from defusedxml.ElementTree import fromstring
 
-from securization.modelos import Fingerprint, OsMatch, ServiceInfo
+from securization.modelos import Fingerprint, HostProfile, OsMatch, ServiceInfo
 from securization.parsing import ParseError, sanitize_text
 
 
@@ -52,9 +52,38 @@ def _parse_network(network: str) -> IPv4Network:
     return red
 
 
-def build_scan_command(address: str | IPv4Address) -> tuple[str, ...]:
-    """Comando para huella de un único host (`-sV -O`) con salida XML por stdout."""
-    return ("nmap", "-sV", "-O", "-oX", "-", str(_parse_address(address)))
+def _parse_ports(ports: Iterable[int]) -> str:
+    """Valida los puertos y los devuelve como lista para `-p`, ordenada y sin duplicados."""
+    validos: set[int] = set()
+    for puerto in ports:
+        # bool es subclase de int: se rechaza explícitamente.
+        if isinstance(puerto, bool) or not isinstance(puerto, int):
+            raise ValueError(f"ports: valor no entero: {puerto!r}")
+        if not 1 <= puerto <= 65535:
+            raise ValueError(f"ports: fuera de rango (1-65535): {puerto}")
+        validos.add(puerto)
+    if not validos:
+        raise ValueError("ports: la lista de puertos está vacía")
+    return ",".join(str(p) for p in sorted(validos))
+
+
+def build_scan_command(
+    address: str | IPv4Address, ports: Iterable[int] | None = None
+) -> tuple[str, ...]:
+    """Comando para huella de un único host (`-sV -O`) con salida XML por stdout.
+
+    Sin `ports`, nmap solo mira sus 1000 puertos más comunes y puede no ver servicios
+    reales (por ejemplo Redis, 6379). Con `ports`, el escaneo se limita a esos puertos
+    (`-p`); lo normal es pasar los del perfil del host (`profile_tcp_ports`).
+    """
+    direccion = str(_parse_address(address))
+    rango = () if ports is None else ("-p", _parse_ports(ports))
+    return ("nmap", "-sV", "-O", *rango, "-oX", "-", direccion)
+
+
+def profile_tcp_ports(profile: HostProfile) -> tuple[int, ...]:
+    """Puertos TCP en escucha según el perfil del host, ordenados y sin duplicados."""
+    return tuple(sorted({s.port for s in profile.services if s.protocol == "tcp"}))
 
 
 def build_ping_sweep_command(network: str) -> tuple[str, ...]:
@@ -210,14 +239,17 @@ class AsyncNmapRunner:
         return stdout.decode(errors="replace")
 
 
-async def scan_host(address: IPv4Address, runner: ProcessRunner) -> Fingerprint:
-    """Escanea un host con `nmap -sV -O` y devuelve su huella.
+async def scan_host(
+    address: IPv4Address, runner: ProcessRunner, ports: Iterable[int] | None = None
+) -> Fingerprint:
+    """Escanea un host con `nmap -sV -O` (limitado a `ports` si se indican) y da su huella.
 
-    Falla con `NmapScanError` si el proceso falla, si la salida no es XML de nmap
-    interpretable, o si la dirección pedida no aparece entre los hosts vivos (nunca
-    devuelve la huella de otro host por error).
+    Falla con `ValueError` si los puertos no son válidos, antes de lanzar nmap; y con
+    `NmapScanError` si el proceso falla, si la salida no es XML de nmap interpretable, o
+    si la dirección pedida no aparece entre los hosts vivos (nunca devuelve la huella de
+    otro host por error).
     """
-    comando = build_scan_command(address)
+    comando = build_scan_command(address, ports)
     try:
         salida = await runner.run(comando)
     except NmapScanError:
