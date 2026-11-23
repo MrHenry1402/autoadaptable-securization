@@ -72,7 +72,7 @@ Riesgo conocido para Windows (no resolver ahora): los deception hosts corren en 
 6. Pull request con squash merge a main referenciando el issue.
 
 ## Trazabilidad del uso de IA
-- Ningun commit ni descripcion de PR lleva marcas de IA (ni trailers `AI-Assisted`/`Co-Authored-By`, ni "Generated with"). El uso de IA se registra solo en AI_USAGE.md.
+- Los commits y las descripciones de PR no llevan ninguna marca de IA (ni `AI-Assisted`, ni `Co-Authored-By`, ni "Generated with"). La trazabilidad del uso de IA vive solo en AI_USAGE.md.
 - Por cada tarea, anadir una entrada en AI_USAGE.md: fecha, herramienta, resumen del prompt, que se genero, que se modifico a mano y commit asociado.
 
 ## Hitos
