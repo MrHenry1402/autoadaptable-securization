@@ -66,8 +66,11 @@ Fuera del MVP: Cowrie, Windows, Scapy, comparación de modelos y la API de Anthr
       libres— quedan vacíos hasta integrar L2)
 - [ ] L2 Ejecución real de nmap y comparación del señuelo con un host real
       (implementado y probado con un `ProcessRunner` falso —
-      `AsyncNmapRunner`/`scan_host` en `escaneo.py`—; validación contra un host y un
-      señuelo reales en VirtualBox pendiente de que el laboratorio esté operativo)
+      `AsyncNmapRunner`/`scan_host` en `escaneo.py`—; validado el 2026-11-23 contra
+      victima-01 y victima-02 con Nmap 7.993 + Npcap en la torre, sin elevación, `-O`
+      incluido. Pendiente: la comparación con un señuelo real (necesita L3) y que el
+      escaneo cubra los puertos del perfil, porque sin `-p` nmap solo mira los 1000 más
+      comunes y no ve Redis 6379 en victima-02)
 - [ ] L3 Contenedores OpenCanary con macvlan en deception-central
 - [ ] L4 Plantado real de breadcrumbs por SFTP y alertas de extremo a extremo
       (la parte de plantado está implementada y probada con un `SftpTransport` falso —
