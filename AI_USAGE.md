@@ -1,7 +1,7 @@
 # AI_USAGE.md
 
-Registro de trazabilidad del uso de IA (ver CLAUDE.md). Una entrada por tarea;
-los commits con código generado llevan el trailer `AI-Assisted: Claude Code`.
+Registro de trazabilidad del uso de IA (ver CLAUDE.md). Una entrada por tarea. Este
+fichero es el único registro del uso de IA: los commits y los PR no llevan marcas de IA.
 
 ## Plantilla
 
@@ -232,3 +232,10 @@ los commits con código generado llevan el trailer `AI-Assisted: Claude Code`.
 - **Qué se generó:** lab/provision_deception.py (Docker, promiscuo persistente, red macvlan, imagen OpenCanary fijada por digest) y la sección de deception-central en docs/lab-design.md. Diagnóstico de por qué el señuelo no respondía: además de `allow-all` en VirtualBox hace falta el modo promiscuo dentro del invitado.
 - **Qué se modificó a mano:** nada; verificado con un señuelo manual de victima-02 alcanzable desde la torre, reinicio de la VM incluido, y con alertas reales de OpenCanary.
 - **Commit(s):** ver el PR de la rama chore/h0-laboratorio-virtualbox.
+
+### 2026-11-23 - Entrega final: README como manual de instalación y uso
+- **Herramienta:** Claude Code (Claude Opus 5.5)
+- **Resumen del prompt:** preparar el código para la entrega final: manual de instalación y uso en el README y comprobación de que el repositorio no contiene credenciales ni claves de API.
+- **Qué se generó:** README.md reescrito (requisitos, instalación con venv y con Docker Compose, configuración por variables de entorno, flujo completo con la CLI `securization`, scripts del laboratorio, calidad y seguridad). Auditoría del historial completo de git: ninguna contraseña del laboratorio, ninguna clave Fernet ni claves de API; las únicas claves privadas son las falsas de las plantillas de breadcrumbs.
+- **Qué se modificó a mano:** pendiente de revisión del alumno.
+- **Commit(s):** ver el PR de la rama docs/readme-manual.
