@@ -547,11 +547,15 @@ class CampaignStore:
 
 
 class DecoyIdentity(BaseModel):
-    """Hostname propuesto para el deception host (componente de IA: S8)."""
+    """Hostname propuesto para el deception host (componente de IA: S8).
+
+    Una etiqueta DNS válida (RFC 1123): letras, dígitos y guiones, 1-63 caracteres, sin
+    empezar ni acabar en guion. Una salida que no lo cumple cuenta como no válida.
+    """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    hostname: str
+    hostname: str = Field(pattern=r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$")
 
 
 def _decoy_hostname_fallback(profile: HostProfile) -> DecoyIdentity:
@@ -583,6 +587,10 @@ async def propose_decoy_hostname(
         f"Sistema operativo: {os_name}\n"
         f"{bloque_perfil}"
     )
-    return await generate_with_fallback(
+    identidad, calidad = await generate_with_fallback(
         client, prompt, DecoyIdentity, lambda: _decoy_hostname_fallback(profile)
     )
+    if identidad.hostname.lower() == profile.host_id.lower():
+        # Copiar el nombre del host real no sirve como señuelo: se trata como no válida.
+        return _decoy_hostname_fallback(profile), GenerationQuality.FALLBACK
+    return identidad, calidad

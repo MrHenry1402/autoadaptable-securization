@@ -84,3 +84,36 @@ def test_decoy_identity_rechaza_campos_extra() -> None:
 
     with pytest.raises(ValidationError):
         DecoyIdentity.model_validate({"hostname": "x", "extra": "no"})
+
+
+# --- Validez del hostname propuesto (L5) ---------------------------------------------
+# Una salida "válida" tiene que ser un hostname utilizable: si no, la tasa de salidas
+# válidas del modelo no mediría nada.
+
+import pytest  # noqa: E402
+
+
+@pytest.mark.parametrize(
+    "propuesto",
+    ["srv mad 03", "srv;rm -rf", "-srv", "srv-", "a" * 64, "", "srv.example.com", "srv_01"],
+)
+async def test_hostname_no_valido_cae_en_el_respaldo(propuesto: str) -> None:
+    cliente = FakeLlmClient(respuesta=json.dumps({"hostname": propuesto}))
+    identidad, calidad = await propose_decoy_hostname(PERFIL, cliente)
+    assert identidad == DecoyIdentity(hostname="victima-01-decoy")
+    assert calidad is GenerationQuality.FALLBACK
+
+
+@pytest.mark.parametrize("propuesto", ["victima-01", "VICTIMA-01"])
+async def test_hostname_que_copia_el_del_host_real_cae_en_el_respaldo(propuesto: str) -> None:
+    cliente = FakeLlmClient(respuesta=json.dumps({"hostname": propuesto}))
+    identidad, calidad = await propose_decoy_hostname(PERFIL, cliente)
+    assert calidad is GenerationQuality.FALLBACK
+    assert identidad.hostname == "victima-01-decoy"
+
+
+async def test_hostname_valido_de_un_solo_caracter_y_maximo_largo() -> None:
+    for propuesto in ("x", "a" * 63, "db-02"):
+        cliente = FakeLlmClient(respuesta=json.dumps({"hostname": propuesto}))
+        identidad, calidad = await propose_decoy_hostname(PERFIL, cliente)
+        assert (identidad.hostname, calidad) == (propuesto, GenerationQuality.AI)

@@ -192,3 +192,61 @@ async def test_generate_with_fallback_el_prompt_llega_tal_cual_al_cliente() -> N
     cliente = FakeLlmClient(respuesta=json.dumps({"nombre": "ok"}))
     await generate_with_fallback(cliente, "mi prompt exacto", _Esquema, _respaldo)
     assert cliente.prompts == ["mi prompt exacto"]
+
+
+# --- IPs dentro del texto de los servicios (L5) -------------------------------------
+# Comprobado en el laboratorio: el MariaDB real responde "Host '10.0.0.1' is not allowed",
+# con la IP del escáner dentro del banner. Ninguna IP puede llegar al LLM en claro.
+
+
+def test_build_profile_payload_seudonimiza_ips_dentro_de_los_banners() -> None:
+    perfil = PERFIL.model_copy(
+        update={
+            "services": [
+                ServiceInfo(
+                    port=3306,
+                    protocol="tcp",
+                    name="mysql",
+                    banner="Host '10.0.0.1' is not allowed to connect to this MariaDB server",
+                    extrainfo="desde 192.168.56.7",
+                )
+            ]
+        }
+    )
+    payload, mapa = build_profile_payload(perfil)
+    texto = payload.model_dump_json()
+    assert "10.0.0.1'" not in texto
+    assert "192.168.56.7" not in texto
+    servicio = payload.services[0]
+    assert servicio.banner is not None
+    assert mapa.restore(servicio.banner) == perfil.services[0].banner
+
+
+def test_build_profile_payload_reutiliza_el_placeholder_de_la_direccion_del_host() -> None:
+    perfil = PERFIL.model_copy(
+        update={
+            "services": [
+                ServiceInfo(port=80, protocol="tcp", name="http", banner=f"srv {PERFIL.address}")
+            ]
+        }
+    )
+    payload, _ = build_profile_payload(perfil)
+    assert payload.services[0].banner == f"srv {payload.address}"
+
+
+def test_build_profile_payload_no_toca_versiones_que_parecen_ips_a_medias() -> None:
+    perfil = PERFIL.model_copy(
+        update={"services": [ServiceInfo(port=22, protocol="tcp", name="ssh", version="10.0p2")]}
+    )
+    payload, _ = build_profile_payload(perfil)
+    assert payload.services[0].version == "10.0p2"
+
+
+def test_build_profile_payload_deja_numeros_con_puntos_que_no_son_ips() -> None:
+    perfil = PERFIL.model_copy(
+        update={
+            "services": [ServiceInfo(port=80, protocol="tcp", name="http", banner="v999.0.0.1")]
+        }
+    )
+    payload, _ = build_profile_payload(perfil)
+    assert payload.services[0].banner == "v999.0.0.1"

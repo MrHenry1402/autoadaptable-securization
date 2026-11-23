@@ -11,6 +11,7 @@ marca con `GenerationQuality.FALLBACK` en vez de fallar o inventar un valor por 
 """
 
 import json
+import re
 from collections.abc import Callable, Sequence
 from ipaddress import IPv4Address
 from typing import Protocol, runtime_checkable
@@ -80,14 +81,55 @@ class ProfilePayload(BaseModel):
     free_ips: list[str] = Field(default_factory=list)
 
 
+_IPV4_IN_TEXT = re.compile(r"(?<![\d.])\d{1,3}(?:\.\d{1,3}){3}(?![\d.])")
+_SERVICE_TEXT_FIELDS = ("banner", "product", "version", "extrainfo")
+
+
+def _ips_in_text(texto: str | None) -> list[IPv4Address]:
+    if not texto:
+        return []
+    encontradas: list[IPv4Address] = []
+    for candidata in _IPV4_IN_TEXT.findall(texto):
+        try:
+            encontradas.append(IPv4Address(candidata))
+        except ValueError:
+            continue
+    return encontradas
+
+
+def _replace_ips(texto: str | None, forward: dict[str, str]) -> str | None:
+    if not texto:
+        return texto
+    return _IPV4_IN_TEXT.sub(lambda m: forward.get(m.group(), m.group()), texto)
+
+
 def build_profile_payload(profile: HostProfile) -> tuple[ProfilePayload, PseudonymMap]:
-    """Construye el payload que se puede enviar al LLM, con las IPs ya seudonimizadas."""
-    forward, mapa = pseudonymize_addresses([profile.address, *profile.free_ips])
+    """Construye el payload que se puede enviar al LLM, con las IPs ya seudonimizadas.
+
+    También las IPs que aparecen dentro del texto de los servicios (banner, producto,
+    versión, extrainfo): el banner real de MariaDB, por ejemplo, incluye la IP del escáner.
+    """
+    en_servicios = [
+        ip
+        for servicio in profile.services
+        for campo in _SERVICE_TEXT_FIELDS
+        for ip in _ips_in_text(getattr(servicio, campo))
+    ]
+    forward, mapa = pseudonymize_addresses([profile.address, *profile.free_ips, *en_servicios])
+    servicios = [
+        servicio.model_copy(
+            update={
+                campo: _replace_ips(getattr(servicio, campo), forward)
+                for campo in _SERVICE_TEXT_FIELDS
+            }
+        )
+        for servicio in profile.services
+    ]
     payload = ProfilePayload(
         host_id=profile.host_id,
         address=forward[str(profile.address)],
         os_name=profile.os_name,
-        services=list(profile.services),
+        services=servicios,
         top_level_dirs=list(profile.top_level_dirs),
         free_ips=[forward[str(ip)] for ip in profile.free_ips],
     )
