@@ -46,8 +46,10 @@ Fuera del MVP: Cowrie, Windows, Scapy, comparación de modelos y la API de Anthr
       campaña
 - [x] S11 Respuesta: modos observación, contención y escalado; reglas de nftables como
       lista de argumentos (revisión línea a línea)
-- [ ] S12 CLI del orquestador que une todo en modo simulación, y bucle de ajuste con el
-      asistente (H4)
+- [x] S12 CLI del orquestador que une todo en modo simulación, y bucle de ajuste con el
+      asistente (H4) — núcleo de orquestación hecho y probado (`run_campaign_simulation`);
+      falta el `main()` de línea de comandos de verdad, aparcado hasta que también exista
+      la ejecución real de nmap (fuera de lo descrito para S12)
 - [ ] S13 Dashboard mínimo (FastAPI, Jinja2, HTMX): inventario, campañas, puntuaciones,
       eventos y aprobación
 
