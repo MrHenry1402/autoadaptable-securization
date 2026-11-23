@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "securization"
 version = "0.1.0"
 description = "Herramienta de deception autodesplegable y autoadaptable (U-Tad, Proyectos de Ciberseguridad)"
-readme = "CLAUDE.md"
+readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "asyncssh>=2.17",
