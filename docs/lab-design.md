@@ -46,6 +46,21 @@ Si en el futuro se desactiva Hyper-V (y lo que lo arrastra: WSL2, Docker Desktop
 integridad de memoria/VBS) y VirtualBox vuelve a usar AMD-V, se puede volver a 2 vCPU con
 IO-APIC activado.
 
+### Scripts (`lab/`)
+
+Todos se ejecutan desde la raíz del repositorio y leen usuario, contraseña, puerto NAT e IP
+de `lab-credentials.local.txt`; ninguno imprime contraseñas.
+
+| Script | Qué hace |
+|---|---|
+| `provision_vm.ps1` | Crea la VM, instala Debian desatendido con `debian_preseed_minimal.cfg` y añade el NIC2 de labnet |
+| `debian_preseed_minimal.cfg` | Plantilla de VirtualBox con `tasksel/first` fijado (sin él, a veces instala GNOME) |
+| `set_static_ip.py <host_id>` | Fija la IP estática de labnet en la VM |
+| `retry_boot_until_ssh.ps1` | Reinicia una VM hasta que su SSH responde de forma estable |
+| `check_lab.py` | SSH, IPs y ping cruzado entre las tres VMs |
+| `register_lab.py` | Alta en `inventario.db` (clave en `securization.key`) y verificación SSH |
+| `profile_lab.py` | Perfilado real con `AsyncSshTransport` (requiere el código de L1) |
+
 ### Pendiente de completar (pasos manuales)
 
 1. Instalar Kali en `kali-lab` desde la ventana de VirtualBox (el ISO ya está montado;

@@ -78,3 +78,10 @@ los commits con código generado llevan el trailer `AI-Assisted: Claude Code`.
 - **Qué se generó:** tests/test_verificador.py, ampliación de tests/test_modelos.py (PlausibilityReport), src/securization/verificador.py y el modelo PlausibilityReport en modelos.py.
 - **Qué se modificó a mano:** tests aprobados por el usuario antes de implementar; implementación pendiente de revisión. No se encontraron errores en el código de S1-S5 durante la revisión.
 - **Commit(s):** ver el PR de la rama feature/s7-verificador.
+
+### 2026-11-23 - H0: laboratorio operativo, scripts de aprovisionamiento y alta en inventario
+- **Herramienta:** Claude Code (Claude Opus 5.5)
+- **Resumen del prompt:** dejar el laboratorio estable sin reiniciar la torre, dar de alta victima-01, victima-02 y deception-central en el inventario, perfilarlas con el perfilador real (L1) y guardar en el repositorio los scripts del laboratorio.
+- **Qué se generó:** diagnóstico del cuelgue de las VMs (VirtualBox cae al backend NEM por Hyper-V; 1 vCPU, sin IO-APIC ni paravirtualización), actualización de docs/lab-design.md y la carpeta lab/ (provision_vm.ps1, debian_preseed_minimal.cfg con `tasksel/first` corregido, set_static_ip.py, retry_boot_until_ssh.ps1, check_lab.py, register_lab.py, profile_lab.py).
+- **Qué se modificó a mano:** nada; los scripts se ejecutaron contra el laboratorio real (SSH, ping cruzado, alta en inventario y perfilado de las dos víctimas con AsyncSshTransport) antes de commitear.
+- **Commit(s):** ver el PR de la rama chore/h0-laboratorio-virtualbox.
