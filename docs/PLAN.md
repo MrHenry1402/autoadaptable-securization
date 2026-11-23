@@ -117,7 +117,25 @@ Fuera del MVP: Cowrie, Windows, Scapy, comparación de modelos y la API de Anthr
       MySQL solo se atribuye por usuario, porque la clave llega cifrada. Fuera de alcance:
       detectar la mera lectura de un breadcrumb (requeriría auditd, es decir, modificar
       el host real))
-- [ ] L5 Ollama: modelo local y tasa de salidas válidas
+- [x] L5 Ollama: modelo local y tasa de salidas válidas (2026-11-23):
+      - `OllamaClient`: solo un Ollama local, `format: json` y `think: false`; los
+        fallos pasan a `LlmError` y de ahí a la plantilla de respaldo.
+      - Antes de usar el modelo real, dos huecos de privacidad y validez cerrados:
+        `build_profile_payload` seudonimiza también las IPs dentro de los banners (el
+        MariaDB real incluye la IP del escáner), y el hostname debe ser una etiqueta DNS
+        válida que no copie el del host real.
+      - Medición con los perfiles reales (Ollama 0.40, RTX 4070 SUPER, 25 semillas por
+        víctima). Primera pasada: 100 % de JSON válido en `qwen3:8b` y `qwen3:14b`, pero
+        `qwen3:8b` proponía `victima-01-deco` en 24 de 25 casos. Era válido como
+        hostname e inútil como señuelo, y la plantilla de respaldo (`<host>-decoy`) tenía
+        el mismo problema. Que valide el esquema no basta.
+      - Tras rechazar nombres con palabras delatoras, pedirlo en el prompt y cambiar el
+        respaldo a `<host>-bak`: 100 % de salidas válidas en ambos modelos, con nombres
+        plausibles (`db-server-01`, `servidor-datos-02`, `servidor-app-03`…).
+        Latencias de 0,25-0,3 s (8b) y 0,4-0,5 s (14b).
+      - `qwen3:14b` da nombres algo más variados; `qwen3:8b` a veces no encaja con los
+        servicios (`db-server-02` para un servidor FTP/Redis).
+      - Reproducible con `lab/l5_tasa_validas.py`
 - [ ] L6 Docker Compose de autodespliegue y pruebas ofensivas desde Kali (H7)
 
 ## Criterios de MVP terminado
