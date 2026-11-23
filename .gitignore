@@ -37,5 +37,8 @@ Thumbs.db
 # Claude Code (configuración local)
 .claude/settings.local.json
 
+# Resultados locales de las mediciones del laboratorio
+lab/*_resultado.json
+lab/l6_resultado/
 # Datos montados por docker compose (inventario y clave)
 data/

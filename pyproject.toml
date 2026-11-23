@@ -61,6 +61,10 @@ select = [
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "S105", "S106"]
 
+[tool.ruff.lint.isort]
+# El paquete propio, aunque un módulo aún no exista en esta rama (los scripts de lab/).
+known-first-party = ["securization"]
+
 [tool.mypy]
 python_version = "3.12"
 strict = true
