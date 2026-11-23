@@ -42,9 +42,9 @@ def campana() -> Campaign:
     )
 
 
-def reporte(score: int = 95, threshold: int = 90, differences: Sequence[str] = ()) -> (
-    PlausibilityReport
-):
+def reporte(
+    score: int = 95, threshold: int = 90, differences: Sequence[str] = ()
+) -> PlausibilityReport:
     return PlausibilityReport(
         score=score, threshold=threshold, passed=score >= threshold, differences=list(differences)
     )

@@ -58,9 +58,7 @@ def create_app(engine: Engine, vault: CredentialVault) -> FastAPI:
 
     @app.get("/hosts", response_class=HTMLResponse)
     def hosts_list(request: Request) -> HTMLResponse:
-        return templates.TemplateResponse(
-            request, "hosts.html", {"hosts": inventory.list_hosts()}
-        )
+        return templates.TemplateResponse(request, "hosts.html", {"hosts": inventory.list_hosts()})
 
     @app.get("/hosts/{host_id}", response_class=HTMLResponse)
     def host_detail(request: Request, host_id: str) -> HTMLResponse:
