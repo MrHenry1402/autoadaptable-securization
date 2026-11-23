@@ -5,18 +5,40 @@ hoy solo `LinuxBreadcrumbCatalog`): genera rutas y contenido de ficheros cebo co
 el perfil de un host, sin IA todavía (eso llega con H3/S8) y sin tocar hosts reales (eso es
 responsabilidad del desplegador). Rutas limitadas a una lista blanca, sin permisos de
 ejecución, con límite de tamaño y sin colisionar con rutas ya conocidas o ya plantadas.
+
+También la línea base sin IA del generador (H2): `build_opencanary_config` copia los
+servicios y banners del perfil a una configuración de OpenCanary, y `build_campaign` la
+empaqueta junto con los breadcrumbs en un `Campaign`. El nombre y la dirección del señuelo
+los decide quien llame a `build_campaign`; adivinar la convención de nombres con IA es la S8.
+
+Aviso: los nombres de clave de OpenCanary (`<módulo>.enabled`, `<módulo>.port`, el banner)
+están tomados de memoria del formato de `canary.conf` y no se han comprobado contra una
+instalación real. Antes de desplegar de verdad (L3), hay que verificarlos contra la versión
+de OpenCanary del laboratorio.
 """
 
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Sequence
+from ipaddress import IPv4Address
 from typing import ClassVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from securization.modelos import HostProfile, OsFamily
-from securization.perfilador import UnsupportedOsFamilyError
+from securization.perfilador import UnsupportedOsFamilyError as UnsupportedOsFamilyError
 
 MAX_BREADCRUMB_SIZE = 4096
+
+# service.name (tal como lo da nmap/ss) -> (módulo de OpenCanary, clave del banner).
+# Solo los módulos con una correspondencia clara y bien documentada; smb y rdp se quedan
+# fuera porque nmap los nombra de forma menos uniforme (microsoft-ds, ms-wbt-server, ...).
+_OPENCANARY_MODULES: dict[str, tuple[str, str]] = {
+    "ssh": ("ssh", "version"),
+    "ftp": ("ftp", "banner"),
+    "http": ("http", "banner"),
+    "mysql": ("mysql", "banner"),
+    "telnet": ("telnet", "banner"),
+}
 
 _LINUX_WHITELIST_DIRS: tuple[str, ...] = ("/home", "/root", "/var/backups")
 _LINUX_HOME_FALLBACK = "/home/admin"
@@ -169,3 +191,78 @@ def get_catalog(os_family: OsFamily) -> BreadcrumbCatalog:
         return _CATALOGS[os_family]()
     except KeyError:
         raise UnsupportedOsFamilyError(f"os_family no soportado: {os_family}") from None
+
+
+def build_opencanary_config(profile: HostProfile, node_id: str) -> dict[str, bool | int | str]:
+    """Configuración de OpenCanary que replica los servicios y banners del perfil.
+
+    Un banner no capturado no se inventa: el módulo se activa sin esa clave y OpenCanary
+    usa el suyo por defecto. Si dos servicios del perfil caen en el mismo módulo, se queda
+    con el de menor puerto.
+    """
+    config: dict[str, bool | int | str] = {
+        "device.node_id": node_id,
+        "ip.autodetect": False,
+    }
+    vistos: set[str] = set()
+    for servicio in sorted(profile.services, key=lambda s: s.port):
+        correspondencia = _OPENCANARY_MODULES.get(servicio.name)
+        if correspondencia is None or correspondencia[0] in vistos:
+            continue
+        modulo, clave_banner = correspondencia
+        vistos.add(modulo)
+        config[f"{modulo}.enabled"] = True
+        config[f"{modulo}.port"] = servicio.port
+        if servicio.banner:
+            config[f"{modulo}.{clave_banner}"] = servicio.banner
+    return config
+
+
+class DecoyConfig(BaseModel):
+    """Identidad y configuración de OpenCanary de un deception host."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    node_id: str
+    address: IPv4Address
+    opencanary_config: dict[str, bool | int | str]
+
+
+class Campaign(BaseModel):
+    """Campaña: señuelo (deception host) y breadcrumbs generados para un host real."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    campaign_id: str
+    host_id: str
+    decoy: DecoyConfig
+    breadcrumbs: list[Breadcrumb]
+
+
+def build_campaign(
+    profile: HostProfile,
+    *,
+    campaign_id: str,
+    decoy_node_id: str,
+    decoy_address: IPv4Address,
+    known_paths: Iterable[str] = (),
+) -> Campaign:
+    """Genera la campaña determinista (H2) de un host: señuelo + breadcrumbs.
+
+    `decoy_node_id` y `decoy_address` los decide quien llama (por ejemplo una IP libre de
+    `securization.escaneo.find_free_ips`); aquí solo se valida que no sea la del host real.
+    """
+    if decoy_address == profile.address:
+        raise ValueError(f"la dirección del señuelo no puede ser la del host real: {decoy_address}")
+    breadcrumbs = get_catalog(profile.os_family).generate(profile, known_paths=known_paths)
+    decoy = DecoyConfig(
+        node_id=decoy_node_id,
+        address=decoy_address,
+        opencanary_config=build_opencanary_config(profile, node_id=decoy_node_id),
+    )
+    return Campaign(
+        campaign_id=campaign_id,
+        host_id=profile.host_id,
+        decoy=decoy,
+        breadcrumbs=breadcrumbs,
+    )

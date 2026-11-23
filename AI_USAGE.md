@@ -78,3 +78,10 @@ los commits con código generado llevan el trailer `AI-Assisted: Claude Code`.
 - **Qué se generó:** tests/test_verificador.py, ampliación de tests/test_modelos.py (PlausibilityReport), src/securization/verificador.py y el modelo PlausibilityReport en modelos.py.
 - **Qué se modificó a mano:** tests aprobados por el usuario antes de implementar; implementación pendiente de revisión. No se encontraron errores en el código de S1-S5 durante la revisión.
 - **Commit(s):** ver el PR de la rama feature/s7-verificador.
+
+### 2026-11-03 - S6: generador determinista (OpenCanary y Campaign)
+- **Herramienta:** Claude Code (Claude Sonnet 5)
+- **Resumen del prompt:** implementar la linea base sin IA (H2) del generador: configuracion de OpenCanary copiada del perfil y modelo Campaign que empaqueta senuelo + breadcrumbs, tests primero.
+- **Que se genero:** tests/test_generador_campanas.py, build_opencanary_config, DecoyConfig, Campaign y build_campaign en src/securization/generador.py.
+- **Que se modifico a mano:** tests aprobados por el usuario antes de implementar; dos ajustes tras el mypy strict (reexport explicito de UnsupportedOsFamilyError y un test de campos extra pasado a model_validate en vez de kwargs).
+- **Commit(s):** ver el PR de la rama feature/s6-generador-campanas.
