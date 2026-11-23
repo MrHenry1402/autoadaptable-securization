@@ -1,7 +1,7 @@
 # AI_USAGE.md
 
-Registro de trazabilidad del uso de IA (ver CLAUDE.md). Una entrada por tarea;
-los commits con código generado llevan el trailer `AI-Assisted: Claude Code`.
+Registro de trazabilidad del uso de IA (ver CLAUDE.md). Una entrada por tarea. Este
+fichero es el único registro del uso de IA: los commits y los PR no llevan marcas de IA.
 
 ## Plantilla
 
