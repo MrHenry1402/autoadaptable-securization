@@ -5,11 +5,13 @@ son lo bastante parecidos. El umbral y la aprobación manual son quien decide el
 (S9); aquí solo se mide.
 """
 
+from pathlib import Path
 from typing import Any
 
 import pytest
 from pydantic import ValidationError
 
+from securization.escaneo import parse_nmap_xml
 from securization.modelos import Fingerprint, OsMatch, PlausibilityReport, ServiceInfo
 from securization.verificador import DEFAULT_THRESHOLD, score_fingerprints, verify_decoy
 
@@ -215,3 +217,118 @@ def test_verify_decoy_devuelve_un_plausibility_report() -> None:
 def test_plausibility_report_rechaza_umbral_fuera_de_rango() -> None:
     with pytest.raises(ValidationError):
         PlausibilityReport(score=50, threshold=150, passed=False, differences=[])
+
+
+# --- H4: huellas reales del laboratorio ------------------------------------------
+#
+# Escaneos reales (nmap 7.993 con los scripts de banner, limitados a los puertos del
+# perfil). Cada host se escaneó dos veces: comparado consigo mismo debe dar 100, o el
+# verificador estaría midiendo ruido. El saludo de MySQL lleva un "salt" aleatorio en cada
+# conexión, así que se compara por la versión que anuncia, no byte a byte.
+
+FIXTURES = Path(__file__).parent / "fixtures" / "nmap"
+
+
+def _huella_real(nombre: str) -> Fingerprint:
+    (huella_xml,) = parse_nmap_xml((FIXTURES / f"{nombre}.xml").read_text(encoding="utf-8"))
+    return huella_xml
+
+
+@pytest.mark.parametrize(
+    ("a", "b"),
+    [
+        ("real_victima01_a", "real_victima01_b"),
+        ("real_victima02_a", "real_victima02_b"),
+        ("senuelo_web01_ubuntu_a", "senuelo_web01_ubuntu_b"),
+    ],
+)
+def test_dos_escaneos_del_mismo_host_puntuan_100(a: str, b: str) -> None:
+    informe = verify_decoy(_huella_real(a), _huella_real(b))
+    assert informe.score == 100, informe.differences
+
+
+def test_senuelo_que_delata_ubuntu_frente_a_un_debian_no_supera_el_umbral() -> None:
+    # Línea base H2: OpenCanary anuncia MySQL 5.5.43-0ubuntu0.14.04.1 en un "Debian 13".
+    informe = verify_decoy(_huella_real("real_victima01_a"), _huella_real("senuelo_web01_ubuntu_a"))
+    assert not informe.passed
+    assert any("ubuntu" in d.lower() for d in informe.differences)
+
+
+def test_senuelo_de_ficheros_solo_difiere_en_redis_y_supera_el_umbral() -> None:
+    informe = verify_decoy(_huella_real("real_victima02_a"), _huella_real("senuelo_files02"))
+    assert informe.passed
+    assert len(informe.differences) == 1
+    assert "6379" in informe.differences[0]
+
+
+SALUDO_A = "[\\x00\\x00\\x00\\x0A5.5.43-0ubuntu0.14.04.1\\x00V\\x07\\x00\\x00NKYB\\x00\\xFF"
+SALUDO_B = "[\\x00\\x00\\x00\\x0A5.5.43-0ubuntu0.14.04.1\\x00`\\x07\\x00\\x00Q\\sd^\\x00\\xFF"
+
+
+def test_saludos_mysql_que_solo_difieren_en_el_salt_coinciden() -> None:
+    real = huella(services=[ServiceInfo(port=3306, protocol="tcp", name="mysql", banner=SALUDO_A)])
+    senuelo = huella(
+        services=[ServiceInfo(port=3306, protocol="tcp", name="mysql", banner=SALUDO_B)]
+    )
+    assert verify_decoy(real, senuelo).differences == []
+
+
+def test_saludos_mysql_con_distinta_version_no_coinciden() -> None:
+    otro = SALUDO_B.replace("5.5.43-0ubuntu0.14.04.1", "5.5.5-11.8.9-MariaDB-0+deb13u1")
+    real = huella(services=[ServiceInfo(port=3306, protocol="tcp", name="mysql", banner=SALUDO_A)])
+    senuelo = huella(services=[ServiceInfo(port=3306, protocol="tcp", name="mysql", banner=otro)])
+    assert verify_decoy(real, senuelo).score < 100
+
+
+def test_distinto_producto_en_un_puerto_compartido_penaliza() -> None:
+    real = huella(services=[ServiceInfo(port=80, protocol="tcp", name="http", product="nginx")])
+    senuelo = huella(
+        services=[ServiceInfo(port=80, protocol="tcp", name="http", product="Apache httpd")]
+    )
+    informe = verify_decoy(real, senuelo)
+    assert informe.score == 70
+    assert any("Apache httpd" in d for d in informe.differences)
+
+
+def test_distinta_version_en_un_puerto_compartido_penaliza() -> None:
+    real = huella(
+        services=[
+            ServiceInfo(port=21, protocol="tcp", name="ftp", product="vsftpd", version="3.0.5")
+        ]
+    )
+    senuelo = huella(
+        services=[
+            ServiceInfo(port=21, protocol="tcp", name="ftp", product="vsftpd", version="2.3.4")
+        ]
+    )
+    assert verify_decoy(real, senuelo).score == 70
+
+
+def test_banner_que_delata_otra_distribucion_hace_distinguible_el_so() -> None:
+    real = huella(
+        services=[ServiceInfo(port=22, protocol="tcp", name="ssh", version="9.2p1 Debian 2")]
+    )
+    senuelo = huella(
+        services=[
+            ServiceInfo(port=22, protocol="tcp", name="ssh", version="9.2p1 Debian 2"),
+            ServiceInfo(port=80, protocol="tcp", name="http", version="2.4.7 (Ubuntu)"),
+        ]
+    )
+    informe = verify_decoy(real, senuelo)
+    assert any("ubuntu" in d.lower() and "SO" in d for d in informe.differences)
+
+
+def test_misma_distribucion_en_ambos_no_es_una_delacion() -> None:
+    servicios = [ServiceInfo(port=22, protocol="tcp", name="ssh", version="8.2p1 Ubuntu 4")]
+    informe = verify_decoy(huella(services=servicios), huella(services=servicios))
+    assert informe.score == 100
+
+
+def test_senuelo_sin_marcas_de_distribucion_no_se_penaliza_por_ello() -> None:
+    real = huella(
+        services=[ServiceInfo(port=22, protocol="tcp", name="ssh", version="9.2p1 Debian 2")]
+    )
+    senuelo = huella(
+        services=[ServiceInfo(port=22, protocol="tcp", name="ssh", version="9.2p1 Debian 2")]
+    )
+    assert verify_decoy(real, senuelo).score == 100

@@ -11,7 +11,7 @@ Contribucion diferencial: bucle cerrado de verificacion de plausibilidad. Tras g
 
 Alcance: SOLO deception. Bastionado y alertado no son fases propias (la alerta existe solo como consecuencia de interactuar con un senuelo). Esta herramienta NO securiza ni modifica la configuracion de los hosts: solo planta breadcrumbs y levanta senuelos. Solo se actua sobre hosts dados de alta explicitamente. Marco de referencia: MITRE Engage.
 
-Alcance de sistema operativo: hosts Linux (Debian 13 en el laboratorio; ver docs/lab-design.md) hasta terminar el H4. Windows es una extension opcional posterior (ver "Soporte multi-SO"). No implementar nada especifico de Windows salvo que un issue lo pida expresamente.
+Alcance de sistema operativo: hosts Linux (Debian 12 en el laboratorio) hasta terminar el H4. Windows es una extension opcional posterior (ver "Soporte multi-SO"). No implementar nada especifico de Windows salvo que un issue lo pida expresamente.
 
 ## Principio de diseno innegociable
 La IA solo genera contenido. Todo lo que toca hosts reales (conexiones, comandos, despliegue, nftables, rutas) lo decide y ejecuta codigo determinista y auditable. Ningun comando se construye con texto procedente del LLM.
@@ -59,7 +59,8 @@ Riesgo conocido para Windows (no resolver ahora): los deception hosts corren en 
 - Los datos del perfil que van al LLM se tratan como no confiables (prompt injection indirecta): viajan como JSON en campo delimitado, truncados y sin caracteres de control. El modelo no tiene herramientas.
 - Al LLM nunca se envia: contenido de ficheros reales, credenciales reales, nombres de usuarios reales ni datos personales. IPs y dominios internos se seudonimizan antes de enviar.
 - Los banners de los senuelos se copian de hosts reales, no los inventa el modelo.
-- Ningun senuelo se despliega sin superar el umbral de plausibilidad y sin aprobacion manual del operador (modo simulacion primero).
+- Ningun senuelo se despliega sin superar el umbral de plausibilidad y sin aprobacion manual del operador (modo simulacion primero). El despliegue definitivo es `deploy_decoy`, que exige el plan aprobado.
+- Unica excepcion, solo en el laboratorio aislado: `start_decoy` puede arrancar un senuelo sin aprobacion para que el bucle de verificacion lo escanee (no se puede puntuar un senuelo apagado). Fuera del laboratorio, siempre `deploy_decoy`.
 - Tipado completo (mypy) y async donde haya E/S de red.
 
 ## Flujo de trabajo
@@ -71,7 +72,7 @@ Riesgo conocido para Windows (no resolver ahora): los deception hosts corren en 
 6. Pull request con squash merge a main referenciando el issue.
 
 ## Trazabilidad del uso de IA
-- Cada commit con codigo generado lleva el trailer `AI-Assisted: Claude Code`.
+- Los commits y las descripciones de PR no llevan ninguna marca de IA (ni `AI-Assisted`, ni `Co-Authored-By`, ni "Generated with"). La trazabilidad del uso de IA vive solo en AI_USAGE.md.
 - Por cada tarea, anadir una entrada en AI_USAGE.md: fecha, herramienta, resumen del prompt, que se genero, que se modifico a mano y commit asociado.
 
 ## Hitos
@@ -86,7 +87,7 @@ Riesgo conocido para Windows (no resolver ahora): los deception hosts corren en 
 - Opcional, solo si sobra tiempo tras H4 y el profesor lo aprueba: soporte Windows (WindowsProfiler, catalogo de breadcrumbs y backend de contencion)
 
 ## Estado actual
-El laboratorio H0 existe en VirtualBox sobre la torre de desarrollo (ver docs/lab-design.md para la topologia completa: red labnet dedicada, VMs y su estado). El agente tiene acceso a VBoxManage en esa misma maquina para crear y configurar VMs, pero el inicio de sesion por SSH con contrasena dentro de los hosts del laboratorio lo bloquea el propio entorno de ejecucion del agente (se trata como una accion que requiere supervision humana): esa parte sigue siendo manual del usuario.
+Desarrollo y laboratorio (VirtualBox, red interna labnet) ya en la torre. El agente tiene permiso explicito del usuario para conectarse por SSH a las VMs del laboratorio y gestionarlas (VBoxManage, aprovisionamiento, diagnostico) directamente desde esta maquina.
 
 ## Idioma
 Codigo, identificadores y commits en ingles; docstrings y documentacion en espanol.

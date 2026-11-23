@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}securization - campañas{% endblock %}
+{% block content %}
+<h1>Campañas</h1>
+{% if plans %}
+<table>
+  <thead><tr><th>campaña</th><th>host</th><th>puntuación</th><th>umbral</th><th>estado</th></tr></thead>
+  <tbody>
+  {% for plan in plans %}
+    <tr>
+      <td><a href="/campaigns/{{ plan.campaign_id }}">{{ plan.campaign_id }}</a></td>
+      <td>{{ plan.host_id }}</td>
+      <td>{{ plan.plausibility_score }}</td>
+      <td>{{ plan.plausibility_threshold }}</td>
+      <td>
+        {% if plan.ready_to_deploy %}
+          <span class="badge badge-ok">lista</span>
+        {% elif plan.approved %}
+          <span class="badge badge-fail">aprobada, bajo umbral</span>
+        {% elif plan.plausibility_score >= plan.plausibility_threshold %}
+          <span class="badge badge-pending">pendiente de aprobación</span>
+        {% else %}
+          <span class="badge badge-fail">bajo umbral</span>
+        {% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No hay campañas generadas todavía.</p>
+{% endif %}
+{% endblock %}
