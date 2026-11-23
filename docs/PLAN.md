@@ -87,11 +87,18 @@ Fuera del MVP: Cowrie, Windows, Scapy, comparación de modelos y la API de Anthr
       texto queda en el perfil guardado, así que antes de L5 hay que comprobar que
       `build_profile_payload` seudonimiza también las IPs que van dentro de los banners.
       Reproducible con `lab/e2e_l3.py` en la rama chore/h0-laboratorio-virtualbox)
-- [ ] L4 Plantado real de breadcrumbs por SFTP y alertas de extremo a extremo
-      (la parte de plantado está implementada y probada con un `SftpTransport` falso —
-      `AsyncSftpTransport`/`plant_breadcrumbs` en `desplegador.py`, creación exclusiva
-      SFTP para nunca sobrescribir—; faltan las alertas de extremo a extremo y la
-      validación contra un host real en VirtualBox)
+- [x] L4 Plantado real de breadcrumbs por SFTP y alertas de extremo a extremo
+      (validado el 2026-11-23. Los breadcrumbs se generan desde el `DecoyConfig`: solo
+      llevan a servicios activos del señuelo, con credenciales propias de la campaña, y
+      se plantan en el home del usuario de gestión, sin pisar ficheros existentes. Con
+      los planes aprobados a mano se plantaron 7 en las dos víctimas; desde cada víctima
+      se usaron sus credenciales contra el señuelo y las alertas reales se atribuyeron a
+      su campaña y a su breadcrumb con `breadcrumb_service_used`: MySQL (8001), HTTP
+      (3001), FTP (2000) y Redis (17001). Hallazgos: `redis-cli -u redis://...`, la forma
+      natural de usar `REDIS_URL`, rompe el parser de OpenCanary y no deja la credencial;
+      MySQL solo se atribuye por usuario, porque la clave llega cifrada. Fuera de alcance:
+      detectar la mera lectura de un breadcrumb (requeriría auditd, es decir, modificar
+      el host real))
 - [ ] L5 Ollama: modelo local y tasa de salidas válidas
 - [ ] L6 Docker Compose de autodespliegue y pruebas ofensivas desde Kali (H7)
 

@@ -351,3 +351,28 @@ def test_servicio_que_el_senuelo_no_tiene_activo_no_se_atribuye() -> None:
 def test_logtype_sin_credenciales_no_se_atribuye() -> None:
     evento = _alerta("files-02", 4000, 22, SESSION="1")
     assert breadcrumb_service_used(evento, SENUELO_FICHEROS) is None
+
+
+# Alertas reales de L4: un "atacante" en cada víctima lee los breadcrumbs plantados y usa
+# sus credenciales contra el señuelo (.my.cnf, .env, .netrc). Incluye el fallo real de
+# `redis-cli -u`, que OpenCanary no sabe interpretar ("invalid bulk length").
+ALERTAS_BREADCRUMBS = (
+    (Path(__file__).parent / "fixtures" / "opencanary" / "alertas_breadcrumbs.jsonl")
+    .read_text(encoding="utf-8")
+    .splitlines()
+)
+
+
+def test_alertas_reales_de_breadcrumbs_se_atribuyen_a_su_servicio() -> None:
+    senuelos = {"web-01": SENUELO_WEB, "files-02": SENUELO_FICHEROS}
+    usados = [
+        breadcrumb_service_used(evento, senuelos[evento.node_id])
+        for evento in map(parse_opencanary_log, ALERTAS_BREADCRUMBS)
+    ]
+    assert usados == ["mysql", "http", "ftp", None, "redis", None, "redis"]
+
+
+def test_alertas_reales_de_breadcrumbs_vienen_de_la_victima_de_su_campana() -> None:
+    origen = {"web-01": IPv4Address("10.0.0.10"), "files-02": IPv4Address("10.0.0.11")}
+    for evento in map(parse_opencanary_log, ALERTAS_BREADCRUMBS):
+        assert evento.src_host == origen[evento.node_id]
