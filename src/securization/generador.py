@@ -23,6 +23,9 @@ from ipaddress import IPv4Address
 from typing import ClassVar
 
 from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy import Engine
+from sqlmodel import Field as SqlField
+from sqlmodel import Session, SQLModel, select
 
 from securization.llm import (
     LlmClient,
@@ -57,6 +60,10 @@ class BreadcrumbError(Exception):
 
 class CollisionError(Exception):
     """Un breadcrumb colisiona con una ruta ya conocida o ya usada por otro breadcrumb."""
+
+
+class CampaignNotFoundError(Exception):
+    """No hay una campaña guardada con ese `campaign_id`."""
 
 
 class Breadcrumb(BaseModel):
@@ -273,6 +280,49 @@ def build_campaign(
         decoy=decoy,
         breadcrumbs=breadcrumbs,
     )
+
+
+class _CampaignRecord(SQLModel, table=True):
+    """Fila con la `Campaign` completa, serializada en JSON."""
+
+    __tablename__ = "campaign"
+
+    campaign_id: str = SqlField(primary_key=True)
+    campaign_json: str
+
+
+class CampaignStore:
+    """Guarda y recupera campañas completas en la base de datos, para el dashboard (S13)."""
+
+    def __init__(self, engine: Engine) -> None:
+        self._engine = engine
+        SQLModel.metadata.create_all(engine)
+
+    def save(self, campaign: Campaign) -> None:
+        """Guarda la campaña; si ya había una con ese `campaign_id`, la sustituye."""
+        payload = campaign.model_dump_json()
+        with Session(self._engine) as session:
+            registro = session.get(_CampaignRecord, campaign.campaign_id)
+            if registro is None:
+                registro = _CampaignRecord(campaign_id=campaign.campaign_id, campaign_json=payload)
+            else:
+                registro.campaign_json = payload
+            session.add(registro)
+            session.commit()
+
+    def load(self, campaign_id: str) -> Campaign:
+        """Recupera la campaña guardada o falla con un error claro."""
+        with Session(self._engine) as session:
+            registro = session.get(_CampaignRecord, campaign_id)
+        if registro is None:
+            raise CampaignNotFoundError(campaign_id)
+        return Campaign.model_validate_json(registro.campaign_json)
+
+    def list_all(self) -> list[Campaign]:
+        """Todas las campañas guardadas."""
+        with Session(self._engine) as session:
+            registros = session.exec(select(_CampaignRecord)).all()
+        return [Campaign.model_validate_json(registro.campaign_json) for registro in registros]
 
 
 class DecoyIdentity(BaseModel):

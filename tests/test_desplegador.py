@@ -5,13 +5,18 @@ de rutas y aprobación manual del operador condicionada al umbral de plausibilid
 """
 
 from ipaddress import IPv4Address
+from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
+from sqlalchemy import Engine
+from sqlmodel import create_engine
 
 from securization.desplegador import (
     DeploymentAction,
     DeploymentPlan,
+    DeploymentPlanNotFoundError,
+    DeploymentPlanStore,
     PlausibilityThresholdError,
     approve_plan,
     build_deployment_plan,
@@ -86,6 +91,18 @@ def test_build_deployment_plan_falla_si_colisiona_con_una_ruta_conocida() -> Non
         build_deployment_plan(CAMPAIGN, reporte(), known_paths=["/root/.env"])
 
 
+def test_build_deployment_plan_copia_las_diferencias_del_informe() -> None:
+    informe = reporte(score=50, threshold=90)
+    informe = informe.model_copy(update={"differences": ["puerto 80 no responde en el señuelo"]})
+    plan = build_deployment_plan(CAMPAIGN, informe)
+    assert plan.differences == ["puerto 80 no responde en el señuelo"]
+
+
+def test_build_deployment_plan_sin_diferencias_es_una_lista_vacia() -> None:
+    plan = build_deployment_plan(CAMPAIGN, reporte())
+    assert plan.differences == []
+
+
 # --- approve_plan --------------------------------------------------------------
 
 
@@ -138,3 +155,56 @@ def test_deployment_plan_rechaza_campos_extra() -> None:
                 "extra": "no",
             }
         )
+
+
+# --- DeploymentPlanStore ---------------------------------------------------------
+
+
+@pytest.fixture
+def engine(tmp_path: Path) -> Engine:
+    return create_engine(f"sqlite:///{tmp_path / 'planes.db'}")
+
+
+def test_deployment_plan_store_guarda_y_recupera_el_plan(engine: Engine) -> None:
+    store = DeploymentPlanStore(engine)
+    plan = build_deployment_plan(CAMPAIGN, reporte())
+    store.save(plan)
+    assert store.load("campana-victima-01") == plan
+
+
+def test_deployment_plan_store_guardar_dos_veces_actualiza_en_vez_de_duplicar(
+    engine: Engine,
+) -> None:
+    store = DeploymentPlanStore(engine)
+    plan = build_deployment_plan(CAMPAIGN, reporte())
+    store.save(plan)
+    aprobado = approve_plan(plan)
+    store.save(aprobado)
+    assert store.load("campana-victima-01") == aprobado
+
+
+def test_deployment_plan_store_cargar_sin_plan_falla_con_error_claro(engine: Engine) -> None:
+    store = DeploymentPlanStore(engine)
+    with pytest.raises(DeploymentPlanNotFoundError, match="campana-victima-01"):
+        store.load("campana-victima-01")
+
+
+def test_deployment_plan_store_persiste_entre_instancias(engine: Engine) -> None:
+    plan = build_deployment_plan(CAMPAIGN, reporte())
+    DeploymentPlanStore(engine).save(plan)
+    otro_store = DeploymentPlanStore(engine)
+    assert otro_store.load("campana-victima-01") == plan
+
+
+def test_deployment_plan_store_list_all_devuelve_todos_los_planes(engine: Engine) -> None:
+    store = DeploymentPlanStore(engine)
+    plan = build_deployment_plan(CAMPAIGN, reporte())
+    otro_plan = plan.model_copy(update={"campaign_id": "campana-victima-02"})
+    store.save(plan)
+    store.save(otro_plan)
+    campaign_ids = {p.campaign_id for p in store.list_all()}
+    assert campaign_ids == {"campana-victima-01", "campana-victima-02"}
+
+
+def test_deployment_plan_store_list_all_vacio_si_no_hay_planes(engine: Engine) -> None:
+    assert DeploymentPlanStore(engine).list_all() == []
