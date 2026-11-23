@@ -1,0 +1,34 @@
+# Autodespliegue de securization (H6).
+#
+#   docker compose up -d                     dashboard en http://<host>:8000
+#   docker compose --profile llm up -d       además, Ollama local para el generador (H3)
+#   docker compose run --rm securization hosts list
+#
+# ./data contiene inventario.db y securization.key (clave Fernet, permisos 600): nunca se
+# versiona ni se copia a la imagen. El escaneo de los señuelos (`campaign`) debe lanzarse
+# desde una máquina distinta del host Docker que los aloja: un host no alcanza a sus propios
+# contenedores macvlan (ver docs/lab-design.md).
+services:
+  securization:
+    build: .
+    image: securization:latest
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/data
+    environment:
+      SECURIZATION_DECEPTION_HOST: ${SECURIZATION_DECEPTION_HOST:-deception-central}
+      SECURIZATION_DECOY_DIR: ${SECURIZATION_DECOY_DIR:-/home/lab/decoys}
+
+  ollama:
+    image: ollama/ollama:0.12.3
+    profiles: ["llm"]
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:11434:11434"
+    volumes:
+      - ollama:/root/.ollama
+
+volumes:
+  ollama:
