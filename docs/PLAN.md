@@ -136,7 +136,25 @@ Fuera del MVP: Cowrie, Windows, Scapy, comparación de modelos y la API de Anthr
       - `qwen3:14b` da nombres algo más variados; `qwen3:8b` a veces no encaja con los
         servicios (`db-server-02` para un servidor FTP/Redis).
       - Reproducible con `lab/l5_tasa_validas.py`
-- [ ] L6 Docker Compose de autodespliegue y pruebas ofensivas desde Kali (H7)
+- [x] L6 Docker Compose de autodespliegue y pruebas ofensivas desde Kali (H7), 2026-11-23:
+      - **H6, herramienta usable de punta a punta**: CLI `securization` (hosts, profile,
+        name, campaign, approve, deploy, events, dashboard); recogida de las alertas reales
+        de los señuelos (`EventStore`, sin duplicados) y dashboard con eventos por campaña
+        y los intentos del bucle H4; `Dockerfile` (sin root, sin datos ni secretos) y
+        `docker-compose.yml` (dashboard, y Ollama con el perfil `llm`). Validado: imagen
+        construida y dashboard servido por `docker compose up -d` en deception-central.
+      - **H7, vista del atacante desde Kali** (`lab/l6_ofensiva.py`, nmap -sV -O sobre
+        1-1024 y servicios habituales): web-01 H2 = 50 (delata Ubuntu) → H4 = 90; files-02
+        90 → 90. Coincide con lo medido desde la torre.
+      - **Detección**: todo ataque contra un servicio del señuelo genera alertas atribuidas
+        a su campaña: hydra 5/5 intentos SSH (web-01) y 5/5 FTP (files-02), sondas de nmap
+        a SSH y Redis, el GET de whatweb.
+      - **Hallazgos**: whatweb identifica web-01 como "Synology RackStation" frente a la
+        "Intranet" real, algo que nmap no ve (el verificador debería añadir una sonda HTTP
+        de título). El barrido de puertos en sí no genera alerta, porque el módulo
+        `portscan` de OpenCanary está desactivado. Restaurar las VMs desde `savestate`
+        desfasa su reloj (14 h en deception-central); hay que forzar la hora antes de
+        comparar horas de eventos.
 
 ## Criterios de MVP terminado
 
