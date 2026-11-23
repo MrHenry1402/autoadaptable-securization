@@ -250,6 +250,6 @@ fichero es el único registro del uso de IA: los commits y los PR no llevan marc
 ### 2026-11-23 - Ensayo de la demo: errores de la CLI
 - **Herramienta:** Claude Code (Claude Opus 5.5)
 - **Resumen del prompt:** ensayar en el laboratorio la demo completa con la CLI antes de grabar el vídeo.
-- **Qué se generó:** `campaign` convierte una colisión de ruta (un breadcrumb que ya existe en el host real) en un mensaje claro en vez de una traza de Python, sin arrancar ningún señuelo; `hosts list` muestra `usuario@ip:puerto` (antes `lab@:22`). Tests de ambos casos.
+- **Qué se generó:** `campaign` convierte una colisión de ruta (un breadcrumb que ya existe en el host real) en un mensaje claro en vez de una traza de Python, sin arrancar ningún señuelo; `hosts list` muestra `usuario@ip:puerto` (antes `lab@:22`). Tests de ambos casos. El dashboard fija un fondo claro explícito: sin él, en un navegador con tema oscuro el texto quedaba sobre fondo negro y era ilegible.
 - **Qué se modificó a mano:** nada; ruff, mypy, bandit y pytest (602 tests, 99 %) en verde. Detectado en el ensayo real contra victima-01, que conservaba los breadcrumbs de L4.
 - **Commit(s):** ver el PR de la rama fix/cli-demo-errors.
