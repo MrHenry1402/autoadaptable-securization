@@ -64,21 +64,41 @@ Fuera del MVP: Cowrie, Windows, Scapy, comparación de modelos y la API de Anthr
       (validado el 2026-11-23 con `lab/profile_lab.py` contra las dos víctimas, con las
       credenciales del inventario cifrado; los campos de nmap —banner, versión, IPs
       libres— quedan vacíos hasta integrar L2)
-- [ ] L2 Ejecución real de nmap y comparación del señuelo con un host real
-      (implementado y probado con un `ProcessRunner` falso —
-      `AsyncNmapRunner`/`scan_host` en `escaneo.py`—; validado el 2026-11-23 contra
-      victima-01 y victima-02 con Nmap 7.993 + Npcap en la torre, sin elevación, `-O`
-      incluido. `scan_host` acepta ahora `ports` (`-p`, con `profile_tcp_ports` para
-      sacarlos del perfil), porque sin él nmap solo mira los 1000 puertos más comunes y
-      no veía Redis 6379 en victima-02; con los puertos del perfil, nmap y perfil
-      coinciden en las dos víctimas. Pendiente: la comparación con un señuelo real
-      (necesita L3))
-- [ ] L3 Contenedores OpenCanary con macvlan en deception-central
-- [ ] L4 Plantado real de breadcrumbs por SFTP y alertas de extremo a extremo
-      (la parte de plantado está implementada y probada con un `SftpTransport` falso —
-      `AsyncSftpTransport`/`plant_breadcrumbs` en `desplegador.py`, creación exclusiva
-      SFTP para nunca sobrescribir—; faltan las alertas de extremo a extremo y la
-      validación contra un host real en VirtualBox)
+- [x] L2 Ejecución real de nmap y comparación del señuelo con un host real
+      (`AsyncNmapRunner`/`scan_host` validados el 2026-11-23 con Nmap 7.993 + Npcap en la
+      torre, sin elevación, `-O` incluido. El escaneo cubre los puertos del perfil
+      (`ports`/`profile_tcp_ports`: sin `-p` nmap no veía Redis 6379) y lanza los
+      scripts `banner` y `http-server-header`: sin ellos todos los banners eran `None` y
+      el verificador no detectaba ninguna diferencia. Comparación real con los señuelos
+      de L3: 90/90 en ambas víctimas, con diferencias reales detectadas)
+- [x] L3 Contenedores OpenCanary con macvlan en deception-central
+      (`start_decoy`/`deploy_decoy` en `desplegador.py`, imagen oficial fijada por
+      digest, MAC con OUI de VirtualBox, config completo con `render_opencanary_conf`
+      sobre el config por defecto real de OpenCanary 0.9.10. Validado el 2026-11-23:
+      perfil → `enrich_profile` con nmap → `build_campaign` → `start_decoy` → escaneo →
+      `verify_decoy`. Hallazgos de la línea base H2 para H4: el saludo de MySQL del
+      señuelo revela `5.5.43-0ubuntu0.14.04.1` y Redis no imita el modo protegido;
+      ambos pasan justo en el umbral (90), así que el verificador pesa poco un banner
+      que delata el SO. El 90 de web-01 está además inflado en HTTP: el real responde
+      `200` con su página "Intranet" y el señuelo `302` a un login de NAS Synology
+      (`http.skin: nasLogin`), pero nmap solo ve `nginx` en ambos y el verificador lo
+      cuenta como coincidencia. El banner real de MariaDB incluye la IP del escáner
+      (`Host '10.0.0.1' is not allowed`), así que ningún señuelo podrá igualarlo; y ese
+      texto queda en el perfil guardado, así que antes de L5 hay que comprobar que
+      `build_profile_payload` seudonimiza también las IPs que van dentro de los banners.
+      Reproducible con `lab/e2e_l3.py` en la rama chore/h0-laboratorio-virtualbox)
+- [x] L4 Plantado real de breadcrumbs por SFTP y alertas de extremo a extremo
+      (validado el 2026-11-23. Los breadcrumbs se generan desde el `DecoyConfig`: solo
+      llevan a servicios activos del señuelo, con credenciales propias de la campaña, y
+      se plantan en el home del usuario de gestión, sin pisar ficheros existentes. Con
+      los planes aprobados a mano se plantaron 7 en las dos víctimas; desde cada víctima
+      se usaron sus credenciales contra el señuelo y las alertas reales se atribuyeron a
+      su campaña y a su breadcrumb con `breadcrumb_service_used`: MySQL (8001), HTTP
+      (3001), FTP (2000) y Redis (17001). Hallazgos: `redis-cli -u redis://...`, la forma
+      natural de usar `REDIS_URL`, rompe el parser de OpenCanary y no deja la credencial;
+      MySQL solo se atribuye por usuario, porque la clave llega cifrada. Fuera de alcance:
+      detectar la mera lectura de un breadcrumb (requeriría auditd, es decir, modificar
+      el host real))
 - [ ] L5 Ollama: modelo local y tasa de salidas válidas
 - [ ] L6 Docker Compose de autodespliegue y pruebas ofensivas desde Kali (H7)
 

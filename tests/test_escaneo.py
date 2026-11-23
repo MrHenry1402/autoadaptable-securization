@@ -13,6 +13,7 @@ from securization.escaneo import (
     ProcessRunner,
     build_ping_sweep_command,
     build_scan_command,
+    enrich_profile,
     find_free_ips,
     parse_alive_hosts,
     parse_nmap_xml,
@@ -210,8 +211,23 @@ def test_ips_libres_rechaza_redes_no_validas_o_enormes(red: str) -> None:
 
 
 def test_comando_de_escaneo() -> None:
-    assert build_scan_command("10.0.0.10") == ("nmap", "-sV", "-O", "-oX", "-", "10.0.0.10")
+    assert build_scan_command("10.0.0.10") == (
+        "nmap",
+        "-sV",
+        "-O",
+        "--script",
+        "banner,http-server-header",
+        "-oX",
+        "-",
+        "10.0.0.10",
+    )
     assert build_scan_command(IPv4Address("10.0.0.10")) == build_scan_command("10.0.0.10")
+
+
+def test_comando_de_escaneo_captura_banners_con_scripts() -> None:
+    # Sin los scripts, nmap no rellena `banner` y el verificador compararía None con None.
+    comando = build_scan_command("10.0.0.10")
+    assert comando[comando.index("--script") + 1] == "banner,http-server-header"
 
 
 @pytest.mark.parametrize(
@@ -228,6 +244,8 @@ def test_comando_de_escaneo_con_puertos_los_limita_con_p() -> None:
         "nmap",
         "-sV",
         "-O",
+        "--script",
+        "banner,http-server-header",
         "-p",
         "21,22,6379",
         "-oX",
@@ -236,8 +254,12 @@ def test_comando_de_escaneo_con_puertos_los_limita_con_p() -> None:
     )
 
 
+def _valor_de_p(comando: tuple[str, ...]) -> str:
+    return comando[comando.index("-p") + 1]
+
+
 def test_comando_de_escaneo_con_puertos_quita_duplicados() -> None:
-    assert build_scan_command("10.0.0.11", ports=(80, 80, 22))[3:5] == ("-p", "22,80")
+    assert _valor_de_p(build_scan_command("10.0.0.11", ports=(80, 80, 22))) == "22,80"
 
 
 def test_comando_de_escaneo_sin_puertos_no_anade_p() -> None:
@@ -271,6 +293,82 @@ def test_profile_tcp_ports_devuelve_solo_tcp_ordenados_y_sin_duplicados() -> Non
         ],
     )
     assert profile_tcp_ports(perfil) == (21, 22, 6379)
+
+
+PERFIL_SS = HostProfile(
+    host_id="victima-02",
+    address=IPv4Address("10.0.0.11"),
+    os_family=OsFamily.LINUX,
+    os_name="Debian GNU/Linux 13 (trixie)",
+    services=[
+        ServiceInfo(port=21, protocol="tcp", name="unknown"),
+        ServiceInfo(port=22, protocol="tcp", name="unknown"),
+        ServiceInfo(port=6379, protocol="tcp", name="unknown"),
+    ],
+    top_level_dirs=["/etc", "/home"],
+)
+
+HUELLA_NMAP = Fingerprint(
+    address=IPv4Address("10.0.0.11"),
+    os_matches=[OsMatch(name="Linux 5.4 - 5.10", accuracy=94, os_family="Linux")],
+    services=[
+        ServiceInfo(
+            port=21,
+            protocol="tcp",
+            name="ftp",
+            banner="220 (vsFTPd 3.0.5)",
+            product="vsftpd",
+            version="3.0.5",
+        ),
+        ServiceInfo(
+            port=22,
+            protocol="tcp",
+            name="ssh",
+            banner="SSH-2.0-OpenSSH_10.0p2 Debian-7+deb13u4",
+            product="OpenSSH",
+        ),
+        ServiceInfo(port=8080, protocol="tcp", name="http-proxy"),
+    ],
+)
+
+
+def test_enrich_profile_copia_los_datos_de_nmap_de_los_puertos_del_perfil() -> None:
+    enriquecido = enrich_profile(PERFIL_SS, HUELLA_NMAP)
+    por_puerto = {s.port: s for s in enriquecido.services}
+    assert por_puerto[21] == HUELLA_NMAP.services[0]
+    assert por_puerto[22].name == "ssh"
+    assert por_puerto[22].banner == "SSH-2.0-OpenSSH_10.0p2 Debian-7+deb13u4"
+
+
+def test_enrich_profile_conserva_los_puertos_del_perfil_que_nmap_no_vio() -> None:
+    enriquecido = enrich_profile(PERFIL_SS, HUELLA_NMAP)
+    assert [s.port for s in enriquecido.services] == [21, 22, 6379]
+    assert enriquecido.services[2].name == "unknown"
+
+
+def test_enrich_profile_ignora_puertos_que_solo_ve_nmap() -> None:
+    # El perfil por SSH (ss) decide qué escucha el host; nmap solo aporta detalle.
+    assert 8080 not in {s.port for s in enrich_profile(PERFIL_SS, HUELLA_NMAP).services}
+
+
+def test_enrich_profile_no_toca_el_resto_del_perfil() -> None:
+    enriquecido = enrich_profile(PERFIL_SS, HUELLA_NMAP)
+    assert enriquecido.model_dump(exclude={"services"}) == PERFIL_SS.model_dump(
+        exclude={"services"}
+    )
+
+
+def test_enrich_profile_no_cruza_puertos_tcp_con_udp() -> None:
+    huella = HUELLA_NMAP.model_copy(
+        update={"services": [ServiceInfo(port=21, protocol="udp", name="ftp-udp")]}
+    )
+    assert enrich_profile(PERFIL_SS, huella).services[0].name == "unknown"
+
+
+def test_enrich_profile_rechaza_la_huella_de_otro_host() -> None:
+    otra = HUELLA_NMAP.model_copy(update={"address": IPv4Address("10.0.0.10")})
+    with pytest.raises(ValueError, match=r"10\.0\.0\.10"):
+        enrich_profile(PERFIL_SS, otra)
 
 
 def test_profile_tcp_ports_de_un_perfil_sin_servicios_tcp_es_vacio() -> None:

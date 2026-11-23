@@ -72,18 +72,38 @@ def build_scan_command(
 ) -> tuple[str, ...]:
     """Comando para huella de un único host (`-sV -O`) con salida XML por stdout.
 
+    Lanza los scripts `banner` y `http-server-header`: sin ellos nmap no da el banner
+    literal y el verificador compararía `None` con `None` en todos los puertos.
+
     Sin `ports`, nmap solo mira sus 1000 puertos más comunes y puede no ver servicios
     reales (por ejemplo Redis, 6379). Con `ports`, el escaneo se limita a esos puertos
     (`-p`); lo normal es pasar los del perfil del host (`profile_tcp_ports`).
     """
     direccion = str(_parse_address(address))
     rango = () if ports is None else ("-p", _parse_ports(ports))
-    return ("nmap", "-sV", "-O", *rango, "-oX", "-", direccion)
+    scripts = ("--script", ",".join(_BANNER_SCRIPTS))
+    return ("nmap", "-sV", "-O", *scripts, *rango, "-oX", "-", direccion)
 
 
 def profile_tcp_ports(profile: HostProfile) -> tuple[int, ...]:
     """Puertos TCP en escucha según el perfil del host, ordenados y sin duplicados."""
     return tuple(sorted({s.port for s in profile.services if s.protocol == "tcp"}))
+
+
+def enrich_profile(profile: HostProfile, fingerprint: Fingerprint) -> HostProfile:
+    """Completa los servicios del perfil con lo que nmap ve en esos mismos puertos.
+
+    El perfil por SSH (`ss`) decide qué puertos escucha el host; nmap aporta nombre,
+    producto, versión y banner. Un puerto que solo ve nmap no se añade, y uno del perfil
+    que nmap no vio se conserva tal cual. Falla si la huella es de otro host.
+    """
+    if fingerprint.address != profile.address:
+        raise ValueError(
+            f"la huella es de {fingerprint.address}, no de {profile.address} ({profile.host_id})"
+        )
+    vistos = {(s.port, s.protocol): s for s in fingerprint.services}
+    servicios = [vistos.get((s.port, s.protocol), s) for s in profile.services]
+    return profile.model_copy(update={"services": servicios})
 
 
 def build_ping_sweep_command(network: str) -> tuple[str, ...]:

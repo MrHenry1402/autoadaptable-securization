@@ -57,6 +57,7 @@ def _simular(huellas: list[Fingerprint], known_paths: Iterable[str] = ()) -> Sim
         decoy_node_id="victima-01-decoy",
         decoy_address=IPv4Address("10.0.0.51"),
         decoy_fingerprints=huellas,
+        home_dir="/home/lab",
         known_paths=known_paths,
     )
 
@@ -86,6 +87,7 @@ def test_no_sigue_iterando_tras_encontrar_una_huella_valida() -> None:
         decoy_node_id="victima-01-decoy",
         decoy_address=IPv4Address("10.0.0.51"),
         decoy_fingerprints=huellas_perezosas(),
+        home_dir="/home/lab",
     )
     assert resultado.attempts == 1
     assert resultado.report.passed is True
@@ -117,4 +119,4 @@ def test_propaga_colisiones_de_ruta_del_generador() -> None:
     from securization.generador import CollisionError
 
     with pytest.raises(CollisionError):
-        _simular([HUELLA_SENUELO_BUENA], known_paths=["/root/.env"])
+        _simular([HUELLA_SENUELO_BUENA], known_paths=["/home/lab/notas_acceso.txt"])

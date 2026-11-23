@@ -46,6 +46,7 @@ def run_campaign_simulation(
     decoy_node_id: str,
     decoy_address: IPv4Address,
     decoy_fingerprints: Iterable[Fingerprint],
+    home_dir: str,
     threshold: int = DEFAULT_THRESHOLD,
     known_paths: Iterable[str] = (),
 ) -> SimulationResult:
@@ -60,6 +61,7 @@ def run_campaign_simulation(
         campaign_id=campaign_id,
         decoy_node_id=decoy_node_id,
         decoy_address=decoy_address,
+        home_dir=home_dir,
         known_paths=known_paths,
     )
 
