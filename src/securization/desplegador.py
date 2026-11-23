@@ -167,7 +167,12 @@ class AsyncSftpTransport:
                 async with sftp.open(path, "x") as fichero:
                     await fichero.write(content)
             except asyncssh.SFTPError as error:
-                if error.code == asyncssh.FX_FILE_ALREADY_EXISTS:
+                # OpenSSH (sftp-server) no usa FX_FILE_ALREADY_EXISTS: ante O_EXCL sobre un
+                # fichero existente responde FX_FAILURE genérico (comprobado en el lab).
+                ya_existe = error.code == asyncssh.FX_FILE_ALREADY_EXISTS or (
+                    error.code == asyncssh.FX_FAILURE and await sftp.exists(path)
+                )
+                if ya_existe:
                     raise BreadcrumbAlreadyExistsError(path) from error
                 raise
             await sftp.chmod(path, mode)

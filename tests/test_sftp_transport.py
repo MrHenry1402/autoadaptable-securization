@@ -28,18 +28,32 @@ class _FakeSftpFile:
 class _FakeSftpClient:
     """Doble de `asyncssh.SFTPClient`: registra escrituras y chmod, simula ficheros ya creados."""
 
-    def __init__(self, *, existing: set[str] | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        existing: set[str] | None = None,
+        exists_code: int = asyncssh.FX_FILE_ALREADY_EXISTS,
+        fail_code: int | None = None,
+    ) -> None:
         self.writes: list[tuple[str, str]] = []
         self.chmods: list[tuple[str, int]] = []
         self.closed = False
         self._existing = existing or set()
+        # OpenSSH (sftp-server) responde FX_FAILURE genérico, no FX_FILE_ALREADY_EXISTS.
+        self._exists_code = exists_code
+        self._fail_code = fail_code
 
     def open(self, path: str, mode: str) -> _FakeSftpFile:
         assert mode == "x"
         if path in self._existing:
-            raise asyncssh.SFTPError(asyncssh.FX_FILE_ALREADY_EXISTS, "file already exists")
+            raise asyncssh.SFTPError(self._exists_code, "file already exists")
+        if self._fail_code is not None:
+            raise asyncssh.SFTPError(self._fail_code, "Failure")
         self._existing.add(path)
         return _FakeSftpFile(self, path)
+
+    async def exists(self, path: str) -> bool:
+        return path in self._existing
 
     async def chmod(self, path: str, mode: int) -> None:
         self.chmods.append((path, mode))
@@ -160,3 +174,26 @@ async def test_write_file_cierra_la_conexion_tras_escribir(
     transport = AsyncSftpTransport("10.0.0.10", 22, "lab", "clave")
     await transport.write_file("/root/.env", "x", 0o600)
     assert fake_connect.connection.closed
+
+
+async def test_openssh_fx_failure_sobre_fichero_existente_es_ya_existe(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Comprobado en el laboratorio: OpenSSH responde FX_FAILURE (no FX_FILE_ALREADY_EXISTS)
+    # cuando la creación exclusiva choca con un fichero existente.
+    sftp = _FakeSftpClient(existing={"/home/lab/.env"}, exists_code=asyncssh.FX_FAILURE)
+    monkeypatch.setattr(asyncssh, "connect", _FakeAsyncsshConnect(_FakeSshConnection(sftp)))
+    transporte = AsyncSftpTransport("10.0.0.11", 22, "lab", "x")
+    with pytest.raises(BreadcrumbAlreadyExistsError, match=r"/home/lab/\.env"):
+        await transporte.write_file("/home/lab/.env", "nuevo", 0o600)
+    assert sftp.writes == []
+
+
+async def test_fx_failure_sin_fichero_existente_se_propaga(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sftp = _FakeSftpClient(fail_code=asyncssh.FX_FAILURE)
+    monkeypatch.setattr(asyncssh, "connect", _FakeAsyncsshConnect(_FakeSshConnection(sftp)))
+    transporte = AsyncSftpTransport("10.0.0.11", 22, "lab", "x")
+    with pytest.raises(asyncssh.SFTPError):
+        await transporte.write_file("/no/existe/dir/.env", "x", 0o600)
