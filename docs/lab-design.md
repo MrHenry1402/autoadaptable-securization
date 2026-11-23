@@ -104,6 +104,7 @@ de `lab-credentials.local.txt`; ninguno imprime contraseñas.
 | `set_static_ip.py <host_id>` | Fija la IP estática de labnet en la VM |
 | `provision_services.py` | Instala y configura los servicios de cada víctima |
 | `provision_deception.py` | Docker, promiscuo persistente, red macvlan e imagen OpenCanary en deception-central |
+| `e2e_l3.py` | Perfil → nmap → campaña → señuelo en contenedor → escaneo → informe de plausibilidad (requiere el código de L3) |
 | `retry_boot_until_ssh.ps1` | Reinicia una VM hasta que su SSH responde de forma estable |
 | `check_lab.py` | SSH, IPs y ping cruzado entre las tres VMs |
 | `register_lab.py` | Alta en `inventario.db` (clave en `securization.key`) y verificación SSH |
