@@ -148,3 +148,10 @@ los commits con código generado llevan el trailer `AI-Assisted: Claude Code`.
 - **Qué se generó:** en `src/securization/escaneo.py`, `NmapScanError`, `ProcessRunner`, `AsyncNmapRunner` y `scan_host`; tests nuevos en `tests/test_escaneo.py` (runner falso, proceso fallido, host no encontrado en la salida, saneado del stderr del error).
 - **Qué se modificó a mano:** ninguno; ruff, mypy --strict, bandit y pytest --cov (98% total, el módulo nuevo cubierto al 100%, los huecos restantes de escaneo.py son de código anterior sin tocar) en verde antes de abrir el PR. Sin validar todavía contra un host o un señuelo reales en VirtualBox: eso queda para cuando el laboratorio esté operativo.
 - **Commit(s):** ver el PR de la rama feature/l2-nmap-real.
+
+### 2026-11-22 - L4 (plantado): `SftpTransport`, `AsyncSftpTransport`, `plant_breadcrumbs`
+- **Herramienta:** Claude Code (Claude Sonnet 5)
+- **Resumen del prompt:** seguir con la parte de L4 que no depende del laboratorio encendido: plantado real de breadcrumbs por SFTP sobre el `DeploymentPlan` de S9, siguiendo el mismo patrón de interfaz + implementación falsa/real que L1 y L2. Tests primero.
+- **Qué se generó:** en `src/securization/desplegador.py`, `SftpTransport`, `AsyncSftpTransport` (asyncssh, modo de apertura `x` = creación exclusiva SFTP, para no fiarse solo de la comprobación de colisiones hecha al construir el plan), `DeploymentNotReadyError`, `BreadcrumbAlreadyExistsError` y `plant_breadcrumbs` (exige `ready_to_deploy`); tests/test_sftp_transport.py (dobles de asyncssh, igual que test_ssh_transport.py de L1) y los tests de `plant_breadcrumbs` añadidos a tests/test_desplegador.py.
+- **Qué se modificó a mano:** ninguno; ruff, mypy --strict, bandit y pytest --cov (100% en desplegador.py, 98% total) en verde antes de abrir el PR. Las semánticas exactas de `asyncssh.SFTPClient.open`/`SFTPError` se comprobaron por introspección contra la versión instalada (2.24.1) en vez de asumirlas de memoria. Quedan pendientes las alertas de extremo a extremo (necesitan OpenCanary real, L3) y la validación contra un host real en VirtualBox.
+- **Commit(s):** ver el PR de la rama feature/l4-sftp-planting.

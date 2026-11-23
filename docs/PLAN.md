@@ -69,6 +69,10 @@ Fuera del MVP: Cowrie, Windows, Scapy, comparación de modelos y la API de Anthr
       señuelo reales en VirtualBox pendiente de que el laboratorio esté operativo)
 - [ ] L3 Contenedores OpenCanary con macvlan en deception-central
 - [ ] L4 Plantado real de breadcrumbs por SFTP y alertas de extremo a extremo
+      (la parte de plantado está implementada y probada con un `SftpTransport` falso —
+      `AsyncSftpTransport`/`plant_breadcrumbs` en `desplegador.py`, creación exclusiva
+      SFTP para nunca sobrescribir—; faltan las alertas de extremo a extremo y la
+      validación contra un host real en VirtualBox)
 - [ ] L5 Ollama: modelo local y tasa de salidas válidas
 - [ ] L6 Docker Compose de autodespliegue y pruebas ofensivas desde Kali (H7)
 
