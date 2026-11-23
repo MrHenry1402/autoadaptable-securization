@@ -90,7 +90,11 @@ class BreadcrumbAccessEvent(BaseModel):
 
 
 class CorrelatedEvent(BaseModel):
-    """Un evento (de OpenCanary o de un breadcrumb) ya vinculado a su campaña."""
+    """Un evento (de OpenCanary o de un breadcrumb) ya vinculado a su campaña.
+
+    `source_host` solo se rellena para eventos de OpenCanary (de dónde vino la conexión);
+    un acceso a un breadcrumb no tiene una IP de origen de red asociada.
+    """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -99,6 +103,7 @@ class CorrelatedEvent(BaseModel):
     event_type: Literal["opencanary", "breadcrumb_access"]
     summary: str
     timestamp: datetime
+    source_host: IPv4Address | None = None
 
 
 class UnknownCampaignError(Exception):
@@ -127,6 +132,7 @@ class CampaignIndex:
             event_type="opencanary",
             summary=resumen,
             timestamp=event.timestamp,
+            source_host=event.src_host,
         )
 
     def correlate_breadcrumb_access(self, event: BreadcrumbAccessEvent) -> CorrelatedEvent:

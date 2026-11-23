@@ -115,6 +115,20 @@ def test_correlate_opencanary_event_sin_logdata_el_resumen_no_lleva_parentesis()
     assert "(" not in correlado.summary
 
 
+def test_correlate_opencanary_event_conserva_el_source_host() -> None:
+    indice = CampaignIndex([CAMPAIGN])
+    correlado = indice.correlate_opencanary_event(parse_opencanary_log(LINEA_SSH))
+    assert correlado.source_host == IPv4Address("10.0.0.20")
+
+
+def test_correlate_breadcrumb_access_no_tiene_source_host() -> None:
+    indice = CampaignIndex([CAMPAIGN])
+    evento = BreadcrumbAccessEvent(
+        host_id="victima-01", path="/root/.env", timestamp=datetime(2026, 11, 19, 12, 0, 0)
+    )
+    assert indice.correlate_breadcrumb_access(evento).source_host is None
+
+
 def test_correlate_opencanary_event_el_resumen_incluye_el_origen() -> None:
     indice = CampaignIndex([CAMPAIGN])
     correlado = indice.correlate_opencanary_event(parse_opencanary_log(LINEA_SSH))

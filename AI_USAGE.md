@@ -113,3 +113,10 @@ los commits con código generado llevan el trailer `AI-Assisted: Claude Code`.
 - **Qué se generó:** tests/test_eventos.py y, en src/securization/eventos.py, `OpenCanaryEvent`, `BreadcrumbAccessEvent`, `CorrelatedEvent`, `UnknownCampaignError`, `parse_opencanary_log` y `CampaignIndex`.
 - **Qué se modificó a mano:** ninguno; ruff, mypy --strict, bandit y pytest --cov (100% en eventos.py) en verde antes de abrir el PR.
 - **Commit(s):** ver el PR de la rama feature/s10-eventos.
+
+### 2026-11-19 - S11: respuesta (observación, contención, escalado)
+- **Herramienta:** Claude Code (Claude Sonnet 5)
+- **Resumen del prompt:** continuar con S11 del PLAN: decidir la acción de respuesta ante un `CorrelatedEvent` (S10) según el modo configurado, y construir la regla de nftables de contención como lista de argumentos fija (nunca `shell=True` ni texto concatenado). Tests primero. Se añadió `source_host` a `CorrelatedEvent` (S10) porque la contención necesita la IP de origen, que antes solo vivía en el `OpenCanaryEvent` sin propagar.
+- **Qué se generó:** tests/test_respuesta.py y, en src/securization/respuesta.py, `ResponseMode`, `ResponseAction`, `build_nftables_block_rule` y `decide_response`. Además, el campo `source_host` en `CorrelatedEvent` (src/securization/eventos.py) y dos tests nuevos en test_eventos.py para cubrirlo.
+- **Qué se modificó a mano:** ninguno; ruff, mypy --strict, bandit y pytest --cov (100% en respuesta.py y eventos.py) en verde antes de abrir el PR. Este módulo decide y construye el comando, pero no ejecuta nada: aplicarlo de verdad contra un host registrado necesita el transporte SSH real (L1) y queda para otra sesión, a propósito, para que la revisión línea a línea de lo que sí toca el firewall se quede en un único sitio pequeño.
+- **Commit(s):** ver el PR de la rama feature/s11-respuesta.
