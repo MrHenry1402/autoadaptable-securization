@@ -138,13 +138,16 @@ class AsyncSftpTransport:
         self._password = password
 
     async def write_file(self, path: str, content: str, mode: int) -> None:
-        async with asyncssh.connect(
-            self._host,
-            port=self._port,
-            username=self._username,
-            password=self._password,
-            known_hosts=None,
-        ) as conn, conn.start_sftp_client() as sftp:
+        async with (
+            asyncssh.connect(
+                self._host,
+                port=self._port,
+                username=self._username,
+                password=self._password,
+                known_hosts=None,
+            ) as conn,
+            conn.start_sftp_client() as sftp,
+        ):
             try:
                 async with sftp.open(path, "x") as fichero:
                     await fichero.write(content)

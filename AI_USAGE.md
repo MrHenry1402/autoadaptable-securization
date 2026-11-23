@@ -155,3 +155,10 @@ los commits con código generado llevan el trailer `AI-Assisted: Claude Code`.
 - **Qué se generó:** en `src/securization/desplegador.py`, `SftpTransport`, `AsyncSftpTransport` (asyncssh, modo de apertura `x` = creación exclusiva SFTP, para no fiarse solo de la comprobación de colisiones hecha al construir el plan), `DeploymentNotReadyError`, `BreadcrumbAlreadyExistsError` y `plant_breadcrumbs` (exige `ready_to_deploy`); tests/test_sftp_transport.py (dobles de asyncssh, igual que test_ssh_transport.py de L1) y los tests de `plant_breadcrumbs` añadidos a tests/test_desplegador.py.
 - **Qué se modificó a mano:** ninguno; ruff, mypy --strict, bandit y pytest --cov (100% en desplegador.py, 98% total) en verde antes de abrir el PR. Las semánticas exactas de `asyncssh.SFTPClient.open`/`SFTPError` se comprobaron por introspección contra la versión instalada (2.24.1) en vez de asumirlas de memoria. Quedan pendientes las alertas de extremo a extremo (necesitan OpenCanary real, L3) y la validación contra un host real en VirtualBox.
 - **Commit(s):** ver el PR de la rama feature/l4-sftp-planting.
+
+### 2026-11-23 - Integración L1 + L2 + L4 y validación real de L1
+- **Herramienta:** Claude Code (Claude Opus 5.5)
+- **Resumen del prompt:** juntar en una sola rama sobre S13 el código de laboratorio (L1, L2, L4), que estaba repartido en ramas que no se contenían entre sí, y dejar constancia de la validación real de L1 contra victima-01 y victima-02.
+- **Qué se generó:** rama feature/integracion-lab (merges de L1, L2 y L4 con los conflictos de AI_USAGE.md resueltos conservando todas las entradas), L1 marcado como hecho en docs/PLAN.md y `ruff format` aplicado a cinco ficheros que venían sin formatear de S13, L2 y L4 (solo cambios de formato).
+- **Qué se modificó a mano:** nada; ruff, ruff format, mypy, bandit, pip-audit y pytest (380 tests, 98% de cobertura) en verde.
+- **Commit(s):** ver el PR de la rama feature/integracion-lab.

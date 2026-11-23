@@ -49,9 +49,7 @@ HUELLA_SENUELO_BUENA = Fingerprint(
 )
 
 
-def _simular(
-    huellas: list[Fingerprint], known_paths: Iterable[str] = ()
-) -> SimulationResult:
+def _simular(huellas: list[Fingerprint], known_paths: Iterable[str] = ()) -> SimulationResult:
     return run_campaign_simulation(
         PERFIL,
         HUELLA_REAL,

@@ -60,9 +60,10 @@ Fuera del MVP: Cowrie, Windows, Scapy, comparación de modelos y la API de Anthr
 
 ## Sesiones con laboratorio (las valida el usuario en VirtualBox)
 
-- [ ] L1 `AsyncSshTransport` (asyncssh) contra victima-01 y victima-02; perfiles reales
-      (implementado y validado de verdad contra `victima-01`; falta `victima-02`, que
-      sigue sin estar operativa en el laboratorio)
+- [x] L1 `AsyncSshTransport` (asyncssh) contra victima-01 y victima-02; perfiles reales
+      (validado el 2026-11-23 con `lab/profile_lab.py` contra las dos víctimas, con las
+      credenciales del inventario cifrado; los campos de nmap —banner, versión, IPs
+      libres— quedan vacíos hasta integrar L2)
 - [ ] L2 Ejecución real de nmap y comparación del señuelo con un host real
       (implementado y probado con un `ProcessRunner` falso —
       `AsyncNmapRunner`/`scan_host` en `escaneo.py`—; validación contra un host y un

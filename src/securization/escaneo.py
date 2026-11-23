@@ -26,6 +26,7 @@ from securization.parsing import ParseError, sanitize_text
 class NmapScanError(Exception):
     """Fallo al escanear un host: el proceso de nmap falló o su salida no es interpretable."""
 
+
 _MIN_PREFIX = 16
 _BANNER_SCRIPTS = ("banner", "http-server-header")
 _UNKNOWN_SERVICE = "unknown"
@@ -205,9 +206,7 @@ class AsyncNmapRunner:
         stdout, stderr = await proceso.communicate()
         if proceso.returncode != 0:
             error = sanitize_text(stderr.decode(errors="replace").strip())
-            raise NmapScanError(
-                f"nmap terminó con código {proceso.returncode}: {error}"
-            )
+            raise NmapScanError(f"nmap terminó con código {proceso.returncode}: {error}")
         return stdout.decode(errors="replace")
 
 
