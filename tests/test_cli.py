@@ -16,7 +16,8 @@ from securization.desplegador import DeploymentPlanStore, build_deployment_plan
 from securization.eventos import EventStore
 from securization.generador import Campaign, CampaignStore, DecoyConfig
 from securization.inventario import CredentialVault, Inventory
-from securization.modelos import PlausibilityReport
+from securization.modelos import HostProfile, OsFamily, PlausibilityReport, ServiceInfo
+from securization.perfilador import HostProfileStore
 
 LOG_REAL = (
     Path(__file__).parent / "fixtures" / "opencanary" / "alertas_breadcrumbs.jsonl"
@@ -145,6 +146,42 @@ async def test_hosts_list_muestra_los_hosts(
     salida = capsys.readouterr().out
     assert "victima-01" in salida
     assert "10.0.0.10" in salida
+    assert "lab@10.0.0.10:22" in salida
+    assert "@:" not in salida
+
+
+# --- campaign -----------------------------------------------------------------------
+
+
+class _SshConHome(FakeSsh):
+    """Doble que responde al comando del home y al `ls` como lo haría el host real."""
+
+    async def run(self, argv: Sequence[str]) -> str:
+        self.calls.append(tuple(argv))
+        if argv[0] == "ls":
+            return ".bashrc\n.env\n"
+        return "/home/lab\n"
+
+
+async def test_campaign_con_colision_falla_con_mensaje_claro_sin_arrancar_nada(
+    rt: FakeRuntime,
+) -> None:
+    # Visto en el ensayo de la demo: un .env ya existente en el home del host real.
+    perfil = HostProfile(
+        host_id="victima-01",
+        address=IPv4Address("10.0.0.10"),
+        os_family=OsFamily.LINUX,
+        os_name="Debian GNU/Linux 13 (trixie)",
+        services=[ServiceInfo(port=3306, protocol="tcp", name="mysql")],
+    )
+    HostProfileStore(rt.engine).save(perfil)
+    rt.ssh_por_host["victima-01"] = _SshConHome()
+    args = cli.build_parser().parse_args(
+        ["campaign", "victima-01", "--decoy-node", "web-01", "--decoy-ip", "10.0.0.50"]
+    )
+    with pytest.raises(SystemExit, match=r"/home/lab/\.env.*nunca sobrescribe"):
+        await cli.run_command(args, rt)
+    assert "deception-central" not in rt.ssh_por_host
 
 
 # --- approve ------------------------------------------------------------------------

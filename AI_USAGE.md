@@ -239,3 +239,17 @@ fichero es el único registro del uso de IA: los commits y los PR no llevan marc
 - **Qué se generó:** README.md reescrito (requisitos, instalación con venv y con Docker Compose, configuración por variables de entorno, flujo completo con la CLI `securization`, scripts del laboratorio, calidad y seguridad). Auditoría del historial completo de git: ninguna contraseña del laboratorio, ninguna clave Fernet ni claves de API; las únicas claves privadas son las falsas de las plantillas de breadcrumbs.
 - **Qué se modificó a mano:** pendiente de revisión del alumno.
 - **Commit(s):** ver el PR de la rama docs/readme-manual.
+
+### 2026-11-23 - Entrega final: memoria en Word
+- **Herramienta:** Claude Code (Claude Opus 5.5)
+- **Resumen del prompt:** redactar desde cero la memoria final en Word con los apartados del enunciado (herramienta final y diferencias con el plan, pruebas y validación, uso de IA, componente de IA, limitaciones y continuidad, manual), partiendo de la entrega intermedia y la memoria informativa.
+- **Qué se generó:** docs/memoria/memoria.js (genera docs/Memoria-final.docx con la librería docx), docs/memoria/diagramas.py (diagramas de arquitectura y flujo con matplotlib) y el propio documento. Las cifras salen de docs/PLAN.md, AI_USAGE.md y de una ejecución real de pytest --cov sobre main; el papel del LLM y del módulo de respuesta se comprobó en el código antes de redactar.
+- **Qué se modificó a mano:** pendiente de revisión del alumno (maquetación sin comprobar visualmente: no hay Word ni LibreOffice en la torre).
+- **Commit(s):** ver el PR de la rama docs/readme-manual.
+
+### 2026-11-23 - Ensayo de la demo: errores de la CLI
+- **Herramienta:** Claude Code (Claude Opus 5.5)
+- **Resumen del prompt:** ensayar en el laboratorio la demo completa con la CLI antes de grabar el vídeo.
+- **Qué se generó:** `campaign` convierte una colisión de ruta (un breadcrumb que ya existe en el host real) en un mensaje claro en vez de una traza de Python, sin arrancar ningún señuelo; `hosts list` muestra `usuario@ip:puerto` (antes `lab@:22`). Tests de ambos casos. El dashboard fija un fondo claro explícito: sin él, en un navegador con tema oscuro el texto quedaba sobre fondo negro y era ilegible.
+- **Qué se modificó a mano:** nada; ruff, mypy, bandit y pytest (602 tests, 99 %) en verde. Detectado en el ensayo real contra victima-01, que conservaba los breadcrumbs de L4.
+- **Commit(s):** ver el PR de la rama fix/cli-demo-errors.
