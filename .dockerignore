@@ -1,0 +1,19 @@
+# Nunca dentro de la imagen: credenciales, datos y entornos locales.
+*.key
+*.db
+*.local.txt
+.env
+.env.*
+data/
+.venv/
+venv/
+.git/
+**/__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+docs/
+lab/
+tests/

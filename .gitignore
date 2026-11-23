@@ -36,3 +36,6 @@ Thumbs.db
 
 # Claude Code (configuración local)
 .claude/settings.local.json
+
+# Datos montados por docker compose (inventario y clave)
+data/

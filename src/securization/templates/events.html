@@ -2,10 +2,35 @@
 {% block title %}securization - eventos{% endblock %}
 {% block content %}
 <h1>Eventos</h1>
-<p class="warning">
-  Todavía no hay una fuente de eventos conectada de verdad: esta pestaña queda pendiente de
-  la instalación real de OpenCanary y Cowrie en el laboratorio (L3), que es cuando
-  `eventos.py` podrá parsear logs reales en vez de datos de ejemplo. No se muestran eventos
-  simulados para no dar una falsa sensación de que el sistema ya está detectando nada.
-</p>
+{% if not events %}
+<p>Todavía no hay alertas de los señuelos. Se recogen con <code>securization events collect</code>.</p>
+{% else %}
+<h2>Por campaña</h2>
+<table>
+  <thead><tr><th>campaña</th><th>alertas</th><th>con credencial de un breadcrumb</th></tr></thead>
+  <tbody>
+  {% for campana, total in by_campaign.items() %}
+    <tr><td><a href="/campaigns/{{ campana }}">{{ campana }}</a></td><td>{{ total }}</td>
+        <td>{{ breadcrumb_uses.get(campana, 0) }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+<h2>Últimas alertas</h2>
+<table>
+  <thead><tr><th>hora</th><th>campaña</th><th>señuelo</th><th>origen</th><th>puerto</th><th>tipo</th><th>breadcrumb</th></tr></thead>
+  <tbody>
+  {% for e in events %}
+    <tr>
+      <td>{{ e.timestamp.strftime("%Y-%m-%d %H:%M:%S") }}</td>
+      <td><a href="/campaigns/{{ e.campaign_id }}">{{ e.campaign_id }}</a></td>
+      <td>{{ e.node_id }}</td>
+      <td>{{ e.src_host }}</td>
+      <td>{{ e.dst_port }}</td>
+      <td>{{ e.logtype }}</td>
+      <td>{% if e.breadcrumb_service %}<span class="badge badge-fail">breadcrumb {{ e.breadcrumb_service }}</span>{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
 {% endblock %}

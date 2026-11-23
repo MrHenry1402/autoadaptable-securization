@@ -22,6 +22,9 @@ from ipaddress import IPv4Address
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
+from sqlalchemy import Engine
+from sqlmodel import Field as SqlField
+from sqlmodel import Session, SQLModel
 
 from securization.desplegador import DeploymentPlan, build_deployment_plan
 from securization.generador import Campaign, DecoyConfig, adjust_decoy, build_campaign
@@ -164,3 +167,39 @@ async def run_verification_loop(
         attempts=intentos,
         stop_reason=motivo,
     )
+
+
+class _VerificationRecord(SQLModel, table=True):
+    """Fila con el `VerificationResult` completo de una campaña, en JSON."""
+
+    __tablename__ = "verification_result"
+
+    campaign_id: str = SqlField(primary_key=True)
+    result_json: str
+
+
+class VerificationResultStore:
+    """Guarda el último resultado del bucle de verificación de cada campaña (H2 frente a H4)."""
+
+    def __init__(self, engine: Engine) -> None:
+        self._engine = engine
+        SQLModel.metadata.create_all(engine)
+
+    def save(self, result: VerificationResult) -> None:
+        """Guarda el resultado; si ya había uno para esa campaña, lo sustituye."""
+        clave = result.campaign.campaign_id
+        with Session(self._engine) as session:
+            registro = session.get(_VerificationRecord, clave)
+            if registro is None:
+                registro = _VerificationRecord(campaign_id=clave, result_json="")
+            registro.result_json = result.model_dump_json()
+            session.add(registro)
+            session.commit()
+
+    def get(self, campaign_id: str) -> VerificationResult | None:
+        """El resultado guardado de la campaña, o None si aún no se ha verificado."""
+        with Session(self._engine) as session:
+            registro = session.get(_VerificationRecord, campaign_id)
+        if registro is None:
+            return None
+        return VerificationResult.model_validate_json(registro.result_json)
