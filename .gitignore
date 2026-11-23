@@ -36,3 +36,6 @@ Thumbs.db
 
 # Claude Code (configuración local)
 .claude/settings.local.json
+
+# Resultados locales de las mediciones del laboratorio
+lab/*_resultado.json
