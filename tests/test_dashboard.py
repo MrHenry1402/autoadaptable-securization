@@ -16,9 +16,15 @@ from sqlmodel import create_engine
 
 from securization.dashboard import create_app
 from securization.desplegador import DeploymentPlanStore, build_deployment_plan
-from securization.generador import Campaign, CampaignStore, build_campaign
+from securization.eventos import EventStore, collect_opencanary_events
+from securization.generador import Campaign, CampaignStore, DecoyConfig, build_campaign
 from securization.inventario import CredentialVault, Inventory
 from securization.modelos import HostProfile, OsFamily, PlausibilityReport, ServiceInfo
+from securization.orquestador import (
+    VerificationAttempt,
+    VerificationResult,
+    VerificationResultStore,
+)
 from securization.perfilador import HostProfileStore
 
 SECRETO = "hunter2-clave-ssh-de-prueba"
@@ -192,10 +198,87 @@ def test_approve_sin_plan_404(client: TestClient) -> None:
     assert respuesta.status_code == 404
 
 
-# --- /events (placeholder honesto) --------------------------------------------------
+# --- /events: alertas reales de los señuelos (H6) ------------------------------------
+
+LOG_REAL = (
+    Path(__file__).parent / "fixtures" / "opencanary" / "alertas_breadcrumbs.jsonl"
+).read_text(encoding="utf-8")
+CAMPANA_FICHEROS = Campaign(
+    campaign_id="campana-victima-02",
+    host_id="victima-02",
+    decoy=DecoyConfig(
+        node_id="files-02",
+        address=IPv4Address("10.0.0.51"),
+        opencanary_config={
+            "device.node_id": "files-02",
+            "ftp.enabled": True,
+            "ftp.port": 21,
+            "redis.enabled": True,
+            "redis.port": 6379,
+        },
+    ),
+    breadcrumbs=[],
+)
 
 
-def test_events_avisa_que_no_hay_fuente_real_conectada(client: TestClient) -> None:
+def test_events_sin_eventos_lo_dice(client: TestClient) -> None:
     respuesta = client.get("/events")
     assert respuesta.status_code == 200
-    assert "no hay una fuente de eventos conectada" in respuesta.text.lower()
+    assert "todavía no hay alertas" in respuesta.text.lower()
+
+
+def test_events_muestra_las_alertas_reales_con_su_campana(
+    engine: Engine, client: TestClient
+) -> None:
+    EventStore(engine).add_new(collect_opencanary_events(LOG_REAL, [CAMPANA_FICHEROS]))
+    respuesta = client.get("/events")
+    assert respuesta.status_code == 200
+    assert "campana-victima-02" in respuesta.text
+    assert "10.0.0.11" in respuesta.text
+    assert "breadcrumb ftp" in respuesta.text
+    assert "breadcrumb redis" in respuesta.text
+
+
+def test_overview_cuenta_alertas_y_breadcrumbs_usados(engine: Engine, client: TestClient) -> None:
+    EventStore(engine).add_new(collect_opencanary_events(LOG_REAL, [CAMPANA_FICHEROS]))
+    respuesta = client.get("/")
+    assert "Alertas de los señuelos" in respuesta.text
+    assert "Breadcrumbs usados" in respuesta.text
+
+
+# --- Detalle de campaña: intentos del bucle de verificación (H4) ------------------------
+
+
+def campana_guardada(engine: Engine) -> Campaign:
+    guardada = campana()
+    CampaignStore(engine).save(guardada)
+    return guardada
+
+
+def test_detalle_de_campana_muestra_los_intentos_del_bucle(
+    engine: Engine, client: TestClient
+) -> None:
+    campana = campana_guardada(engine)
+    plan = build_deployment_plan(campana, reporte(score=90))
+    DeploymentPlanStore(engine).save(plan)
+    intentos = [
+        VerificationAttempt(
+            attempt=1,
+            opencanary_config={"device.node_id": "x"},
+            report=reporte(score=50, differences=["SO distinguible: el señuelo delata ubuntu"]),
+        ),
+        VerificationAttempt(
+            attempt=2, opencanary_config={"device.node_id": "x"}, report=reporte(score=90)
+        ),
+    ]
+    VerificationResultStore(engine).save(
+        VerificationResult(
+            campaign=campana, report=intentos[-1].report, attempts=intentos, stop_reason="aprobado"
+        )
+    )
+    respuesta = client.get(f"/campaigns/{campana.campaign_id}")
+    assert respuesta.status_code == 200
+    assert "Bucle de verificación" in respuesta.text
+    assert "50" in respuesta.text
+    assert "delata ubuntu" in respuesta.text
+    assert "aprobado" in respuesta.text

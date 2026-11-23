@@ -5,6 +5,7 @@ dos funciones; aquí se sustituyen por dobles que devuelven huellas según el co
 """
 
 from ipaddress import IPv4Address
+from pathlib import Path
 
 import pytest
 
@@ -154,3 +155,22 @@ async def test_max_attempts_debe_ser_positivo() -> None:
         await run_verification_loop(
             PERFIL, HUELLA_REAL, CAMPANA, start=lab.start, scan=lab.scan, max_attempts=0
         )
+
+
+async def test_verification_result_store_guarda_sustituye_y_devuelve_none(tmp_path: Path) -> None:
+    from sqlmodel import create_engine
+
+    from securization.orquestador import VerificationResultStore
+
+    store = VerificationResultStore(create_engine(f"sqlite:///{tmp_path / 'v.db'}"))
+    assert store.get(CAMPANA.campaign_id) is None
+    lab = FakeLab()
+    primero = await run_verification_loop(
+        PERFIL, HUELLA_REAL, CAMPANA, start=lab.start, scan=lab.scan, threshold=0
+    )
+    segundo = await run_verification_loop(
+        PERFIL, HUELLA_REAL, CAMPANA, start=lab.start, scan=lab.scan, threshold=85
+    )
+    store.save(primero)
+    store.save(segundo)
+    assert store.get(CAMPANA.campaign_id) == segundo

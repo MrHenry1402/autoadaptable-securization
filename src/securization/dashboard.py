@@ -6,9 +6,9 @@ despliegues. No ejecuta nada sobre hosts reales: solo lee lo que ya guardaron el
 (`generador.py`/`desplegador.py`), y aprueba planes a través de `desplegador.approve_plan`,
 que ya impone el umbral de plausibilidad.
 
-La pestaña de eventos (S10/S11) todavía no tiene una fuente real conectada (depende de L3:
-instalación real de OpenCanary en el laboratorio), así que muestra un aviso honesto en vez
-de datos de ejemplo.
+La pestaña de eventos muestra las alertas reales de los señuelos que securization events
+recoge de OpenCanary (H6), ya correlacionadas con su campaña y con el breadcrumb usado. El
+detalle de campaña muestra los intentos del bucle de verificación (H2 frente a H4).
 """
 
 from pathlib import Path
@@ -25,8 +25,10 @@ from securization.desplegador import (
     PlausibilityThresholdError,
     approve_plan,
 )
+from securization.eventos import EventStore
 from securization.generador import Campaign, CampaignNotFoundError, CampaignStore
 from securization.inventario import CredentialVault, HostNotFoundError, Inventory
+from securization.orquestador import VerificationResultStore
 from securization.perfilador import HostProfileStore, ProfileNotFoundError
 
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
@@ -38,6 +40,8 @@ def create_app(engine: Engine, vault: CredentialVault) -> FastAPI:
     profiles = HostProfileStore(engine)
     campaigns = CampaignStore(engine)
     plans = DeploymentPlanStore(engine)
+    events_store = EventStore(engine)
+    verifications = VerificationResultStore(engine)
     templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
 
     app = FastAPI(title="securization - dashboard")
@@ -53,6 +57,8 @@ def create_app(engine: Engine, vault: CredentialVault) -> FastAPI:
                 "total_hosts": len(inventory.list_hosts()),
                 "total_campaigns": len(plan_list),
                 "total_pending": len(pendientes),
+                "total_events": sum(events_store.count_by_campaign().values()),
+                "total_breadcrumb_uses": sum(events_store.count_breadcrumb_uses().values()),
             },
         )
 
@@ -96,7 +102,12 @@ def create_app(engine: Engine, vault: CredentialVault) -> FastAPI:
         return templates.TemplateResponse(
             request,
             "campaign_detail.html",
-            {"plan": plan, "campaign": _campaign_or_none(plan.campaign_id), "error": None},
+            {
+                "plan": plan,
+                "campaign": _campaign_or_none(plan.campaign_id),
+                "verification": verifications.get(plan.campaign_id),
+                "error": None,
+            },
         )
 
     @app.post("/campaigns/{campaign_id}/approve", response_class=HTMLResponse)
@@ -112,11 +123,24 @@ def create_app(engine: Engine, vault: CredentialVault) -> FastAPI:
         return templates.TemplateResponse(
             request,
             "campaign_detail.html",
-            {"plan": plan, "campaign": _campaign_or_none(plan.campaign_id), "error": error},
+            {
+                "plan": plan,
+                "campaign": _campaign_or_none(plan.campaign_id),
+                "verification": verifications.get(plan.campaign_id),
+                "error": error,
+            },
         )
 
     @app.get("/events", response_class=HTMLResponse)
     def events(request: Request) -> HTMLResponse:
-        return templates.TemplateResponse(request, "events.html", {})
+        return templates.TemplateResponse(
+            request,
+            "events.html",
+            {
+                "events": events_store.list_recent(),
+                "by_campaign": events_store.count_by_campaign(),
+                "breadcrumb_uses": events_store.count_breadcrumb_uses(),
+            },
+        )
 
     return app

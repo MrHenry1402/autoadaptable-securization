@@ -30,6 +30,23 @@
 </ul>
 {% endif %}
 
+{% if verification %}
+<h2>Bucle de verificación</h2>
+<p>Motivo de parada: <strong>{{ verification.stop_reason }}</strong></p>
+<table>
+  <thead><tr><th>intento</th><th>puntuación</th><th>diferencias con el host real</th></tr></thead>
+  <tbody>
+  {% for intento in verification.attempts %}
+    <tr>
+      <td>{{ intento.attempt }}</td>
+      <td>{{ intento.report.score }} / {{ intento.report.threshold }}</td>
+      <td>{% for d in intento.report.differences %}{{ d }}<br>{% else %}ninguna{% endfor %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
 <h2>Breadcrumbs planeados</h2>
 <table>
   <thead><tr><th>ruta</th><th>permisos</th></tr></thead>
