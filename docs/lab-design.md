@@ -106,6 +106,7 @@ de `lab-credentials.local.txt`; ninguno imprime contraseñas.
 | `provision_deception.py` | Docker, promiscuo persistente, red macvlan e imagen OpenCanary en deception-central |
 | `e2e_l3.py` | Perfil → nmap → campaña → señuelo en contenedor → escaneo → informe de plausibilidad (requiere el código de L3) |
 | `l4_breadcrumbs.py plan\|plant\|verify\|clean` | Plan de breadcrumbs sin aprobar, plantado tras revisarlo, atribución de las alertas a su breadcrumb y limpieza de solo esas rutas (requiere el código de L4) |
+| `h4_bucle.py` | Perfil real (con versiones de paquetes) → bucle cerrado de verificación con los señuelos reales: arranca, escanea, puntúa y ajusta (requiere el código de H4) |
 | `atacante/victima-0N.sh` | "Atacante" en cada víctima: lee los breadcrumbs y usa sus credenciales contra el señuelo (`ssh ... bash -s < lab/atacante/victima-01.sh`) |
 | `retry_boot_until_ssh.ps1` | Reinicia una VM hasta que su SSH responde de forma estable |
 | `check_lab.py` | SSH, IPs y ping cruzado entre las tres VMs |
