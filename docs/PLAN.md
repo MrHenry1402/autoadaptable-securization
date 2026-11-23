@@ -61,6 +61,8 @@ Fuera del MVP: Cowrie, Windows, Scapy, comparación de modelos y la API de Anthr
 ## Sesiones con laboratorio (las valida el usuario en VirtualBox)
 
 - [ ] L1 `AsyncSshTransport` (asyncssh) contra victima-01 y victima-02; perfiles reales
+      (implementado y validado de verdad contra `victima-01`; falta `victima-02`, que
+      sigue sin estar operativa en el laboratorio)
 - [ ] L2 Ejecución real de nmap y comparación del señuelo con un host real
 - [ ] L3 Contenedores OpenCanary con macvlan en deception-central
 - [ ] L4 Plantado real de breadcrumbs por SFTP y alertas de extremo a extremo

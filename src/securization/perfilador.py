@@ -11,6 +11,7 @@ from collections.abc import Sequence
 from ipaddress import IPv4Address
 from typing import ClassVar, Protocol, runtime_checkable
 
+import asyncssh
 from sqlalchemy import Engine
 from sqlmodel import Field, Session, SQLModel
 
@@ -22,6 +23,7 @@ from securization.parsers_linux import (
     parse_os_release,
     parse_ss_listening,
     parse_top_level_dirs,
+    to_command_line,
 )
 from securization.parsing import ParseError
 
@@ -45,6 +47,34 @@ class SshTransport(Protocol):
     async def run(self, argv: Sequence[str]) -> str:
         """Ejecuta el comando remoto (lista de argumentos) y devuelve su salida estándar."""
         ...
+
+
+class AsyncSshTransport:
+    """Implementación real de `SshTransport` sobre asyncssh, para el laboratorio (L1).
+
+    No se fía de ningún `known_hosts`: las VMs del laboratorio se recrean con claves de
+    host distintas en cada reinstalación, así que una huella guardada de una vez anterior
+    solo causaría fallos de verificación falsos. La autenticidad del host no es lo que
+    protege esta capa; las credenciales de gestión (cifradas en el inventario) sí lo son.
+    """
+
+    def __init__(self, host: str, port: int, username: str, password: str) -> None:
+        self._host = host
+        self._port = port
+        self._username = username
+        self._password = password
+
+    async def run(self, argv: Sequence[str]) -> str:
+        command = to_command_line(argv)
+        async with asyncssh.connect(
+            self._host,
+            port=self._port,
+            username=self._username,
+            password=self._password,
+            known_hosts=None,
+        ) as conn:
+            result = await conn.run(command, check=True)
+            return str(result.stdout)
 
 
 class HostProfiler(ABC):
