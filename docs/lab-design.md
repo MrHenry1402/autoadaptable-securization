@@ -17,24 +17,40 @@ máquina (no reutiliza el adaptador Host-Only por defecto de VirtualBox):
 
 | Host | IP (labnet) | SO | RAM | CPU | Rol | Estado |
 |---|---|---|---|---|---|---|
-| `deception-central` | 10.0.0.5 | Debian 13 (Trixie) | 2 GB | 2 | Futuros deception hosts (H2+, OpenCanary/Cowrie) | Instalado; pendiente fijar IP estática (manual) |
-| `victima-01` | 10.0.0.10 | Debian 13 (Trixie) | 2 GB | 2 | Host real a perfilar | Instalado; pendiente fijar IP estática (manual) |
-| `victima-02` | 10.0.0.11 | Debian 13 (Trixie) | 2 GB | 2 | Host real a perfilar | Instalado; pendiente fijar IP estática (manual) |
-| `kali-lab` | 10.0.0.20 | Kali Linux 2024.4 | 4 GB | 2 | Host atacante (H7) | VM creada con el ISO montado; instalación del SO pendiente (manual, `VBoxManage unattended` no soporta el instalador de Kali) |
+| `deception-central` | 10.0.0.5 | Debian 13 (Trixie) | 2 GB | 1 | Futuros deception hosts (H2+, OpenCanary/Cowrie) | Operativo: IP estática, SSH y ping cruzado verificados |
+| `victima-01` | 10.0.0.10 | Debian 13 (Trixie) | 2 GB | 1 | Host real a perfilar | Operativo: IP estática, SSH y ping cruzado verificados |
+| `victima-02` | 10.0.0.11 | Debian 13 (Trixie) | 2 GB | 1 | Host real a perfilar | Operativo: IP estática, SSH y ping cruzado verificados |
+| `kali-lab` | 10.0.0.20 | Kali Linux 2024.4 | 4 GB | 1 | Host atacante (H7) | VM creada con el ISO montado; instalación del SO pendiente (manual, `VBoxManage unattended` no soporta el instalador de Kali) |
 
 Cada VM Debian tiene dos adaptadores: `nic1` NAT (solo para `apt` durante la instalación y
 actualizaciones puntuales) y `nic2` en `labnet` con la IP de la tabla. `kali-lab` sigue el
 mismo patrón.
 
+Estado verificado el 2026-11-23: las tres VMs Debian responden por SSH, tienen su IP de
+`labnet` en `enp0s8`, se hacen ping entre sí y el host las alcanza en `10.0.0.5/.10/.11`.
+
+### Configuración obligatoria de CPU (Hyper-V activo en la torre)
+
+En esta máquina el hipervisor de Windows está activo, así que VirtualBox no puede usar
+AMD-V directamente y cae al backend NEM (Windows Hypervisor Platform); en `VBox.log`
+aparece `HM: HMR3Init: Attempting fall back to NEM: AMD-V is not available`. Con 2 vCPU,
+IO-APIC y paravirtualización por defecto, los invitados se colgaban al arrancar
+(`TM: Giving up catch-up attempt at a 60 00X ns lag`) o el kernel entraba en pánico
+(`IO-APIC + timer doesn't work`). Todas las VMs del laboratorio usan por eso:
+
+```
+VBoxManage modifyvm <vm> --cpus 1 --ioapic off --paravirtprovider none
+```
+
+Si en el futuro se desactiva Hyper-V (y lo que lo arrastra: WSL2, Docker Desktop,
+integridad de memoria/VBS) y VirtualBox vuelve a usar AMD-V, se puede volver a 2 vCPU con
+IO-APIC activado.
+
 ### Pendiente de completar (pasos manuales)
 
-1. En cada una de las tres VMs Debian, por SSH (reenviado por NAT durante esta fase):
-   fijar la IP estática del `nic2` en `/etc/network/interfaces` (interfaz `enp0s8`) y
-   reiniciar la red. Ver `lab-credentials.local.txt` para los puertos y contraseñas.
-2. Instalar Kali en `kali-lab` desde la ventana de VirtualBox (el ISO ya está montado;
+1. Instalar Kali en `kali-lab` desde la ventana de VirtualBox (el ISO ya está montado;
    arranca con `VBoxManage startvm kali-lab --type gui` o desde la interfaz gráfica).
-3. Una vez las cuatro VMs tengan su IP de `labnet` confirmada (`ping 10.0.0.X` desde el
-   host), dar de alta `victima-01` y `victima-02` en el `Inventory` del propio proyecto
+2. Dar de alta `victima-01` y `victima-02` en el `Inventory` del propio proyecto
    (credenciales SSH cifradas con Fernet) para poder probar el perfilador contra hosts
    reales (sesiones L1 en adelante de `docs/PLAN.md`).
 
