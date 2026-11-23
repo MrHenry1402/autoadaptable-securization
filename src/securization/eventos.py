@@ -206,7 +206,8 @@ class CampaignIndex:
 
 # --- Recogida y almacenamiento de alertas reales de los señuelos (H6) ---------------
 
-_DECOY_LOG = "/var/tmp/opencanary.log"  # noqa: S108 - ruta dentro del contenedor OpenCanary
+# Ruta dentro del contenedor OpenCanary (no un fichero temporal local).
+_DECOY_LOG = "/var/tmp/opencanary.log"  # noqa: S108  # nosec B108
 _STARTUP_LOGTYPES = frozenset({1001})
 
 
