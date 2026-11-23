@@ -197,3 +197,10 @@ los commits con código generado llevan el trailer `AI-Assisted: Claude Code`.
 - **Qué se generó:** verificador con el saludo de MySQL normalizado, comparación de producto/versión/extrainfo y detección de una distribución delatora, con escaneos reales como fixtures; `HostProfile.packages` y `parse_dpkg_query`/`DPKG_CMD` en el perfilador; `mysql_banner_from_package`, `adjust_decoy` y la validación de `mysql.banner` en `render_opencanary_conf`; `run_verification_loop` en el orquestador; arreglo de `AsyncSftpTransport` (OpenSSH responde FX_FAILURE y no FX_FILE_ALREADY_EXISTS ante un fichero existente).
 - **Qué se modificó a mano:** nada; ruff, mypy, bandit y pytest (528 tests, 99%) en verde. Validado en el laboratorio: web-01 pasa de 50 a 90 en el segundo intento y files-02 aprueba a la primera.
 - **Commit(s):** ver el PR de la rama feature/h4-bucle-ajuste.
+
+### 2026-11-23 - L5: Ollama local y tasa de salidas válidas
+- **Herramienta:** Claude Code (Claude Opus 5.5)
+- **Resumen del prompt:** conectar el generador a un modelo local con Ollama y medir la tasa de salidas válidas con los perfiles reales del laboratorio, comparando modelos. Tests primero.
+- **Qué se generó:** `OllamaClient` en `llm.py` (solo URL local, JSON sin razonamiento, fallos como `LlmError`); seudonimización de las IPs dentro del texto de los servicios en `build_profile_payload`; validación del hostname propuesto (etiqueta DNS, sin copiar el del host real, sin palabras que delaten el engaño), prompt que lo pide y respaldo `<host>-bak`; tests en tests/test_ollama.py, tests/test_llm.py y tests/test_generador_identidad.py.
+- **Qué se modificó a mano:** nada; ruff, mypy, bandit y pytest (573 tests, 99%) en verde. Medido contra Ollama local con qwen3:8b y qwen3:14b (25 semillas por víctima): 100% válidas en ambos tras las correcciones. La primera medición mostró que el 8b nombraba "deco" al señuelo en 24 de 25 casos.
+- **Commit(s):** ver el PR de la rama feature/l5-ollama.
