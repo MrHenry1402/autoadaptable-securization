@@ -16,9 +16,10 @@ from securization.escaneo import (
     find_free_ips,
     parse_alive_hosts,
     parse_nmap_xml,
+    profile_tcp_ports,
     scan_host,
 )
-from securization.modelos import Fingerprint, OsMatch, ServiceInfo
+from securization.modelos import Fingerprint, HostProfile, OsFamily, OsMatch, ServiceInfo
 from securization.parsing import ParseError
 
 FIXTURES = Path(__file__).parent / "fixtures" / "nmap"
@@ -222,6 +223,66 @@ def test_comando_de_escaneo_rechaza_destinos_que_no_son_una_ip(direccion: str) -
         build_scan_command(direccion)
 
 
+def test_comando_de_escaneo_con_puertos_los_limita_con_p() -> None:
+    assert build_scan_command("10.0.0.11", ports=[22, 21, 6379]) == (
+        "nmap",
+        "-sV",
+        "-O",
+        "-p",
+        "21,22,6379",
+        "-oX",
+        "-",
+        "10.0.0.11",
+    )
+
+
+def test_comando_de_escaneo_con_puertos_quita_duplicados() -> None:
+    assert build_scan_command("10.0.0.11", ports=(80, 80, 22))[3:5] == ("-p", "22,80")
+
+
+def test_comando_de_escaneo_sin_puertos_no_anade_p() -> None:
+    assert "-p" not in build_scan_command("10.0.0.11", ports=None)
+
+
+@pytest.mark.parametrize("puertos", [[], [0], [65536], [-1], [22, 70000]])
+def test_comando_de_escaneo_rechaza_puertos_no_validos(puertos: list[int]) -> None:
+    with pytest.raises(ValueError, match="ports"):
+        build_scan_command("10.0.0.11", ports=puertos)
+
+
+@pytest.mark.parametrize("puerto", [True, "22", "22,80", 22.0])
+def test_comando_de_escaneo_rechaza_puertos_que_no_son_enteros(puerto: object) -> None:
+    with pytest.raises(ValueError, match="ports"):
+        build_scan_command("10.0.0.11", ports=[puerto])  # type: ignore[list-item]
+
+
+def test_profile_tcp_ports_devuelve_solo_tcp_ordenados_y_sin_duplicados() -> None:
+    perfil = HostProfile(
+        host_id="victima-02",
+        address=IPv4Address("10.0.0.11"),
+        os_family=OsFamily.LINUX,
+        os_name="Debian GNU/Linux 13 (trixie)",
+        services=[
+            ServiceInfo(port=6379, protocol="tcp", name="redis"),
+            ServiceInfo(port=22, protocol="tcp", name="ssh"),
+            ServiceInfo(port=22, protocol="tcp", name="ssh"),
+            ServiceInfo(port=123, protocol="udp", name="ntp"),
+            ServiceInfo(port=21, protocol="tcp", name="ftp"),
+        ],
+    )
+    assert profile_tcp_ports(perfil) == (21, 22, 6379)
+
+
+def test_profile_tcp_ports_de_un_perfil_sin_servicios_tcp_es_vacio() -> None:
+    perfil = HostProfile(
+        host_id="victima-02",
+        address=IPv4Address("10.0.0.11"),
+        os_family=OsFamily.LINUX,
+        os_name="Debian",
+    )
+    assert profile_tcp_ports(perfil) == ()
+
+
 def test_comando_de_barrido() -> None:
     assert build_ping_sweep_command("10.0.0.0/24") == ("nmap", "-sn", "-oX", "-", "10.0.0.0/24")
 
@@ -258,6 +319,19 @@ async def test_scan_host_construye_el_comando_y_lo_ejecuta() -> None:
     runner = FakeProcessRunner(stdout=fixture("sv_o_victima01.xml"))
     await scan_host(IPv4Address("10.0.0.10"), runner)
     assert runner.calls == [build_scan_command("10.0.0.10")]
+
+
+async def test_scan_host_con_puertos_los_pasa_al_comando() -> None:
+    runner = FakeProcessRunner(stdout=fixture("sv_o_victima01.xml"))
+    await scan_host(IPv4Address("10.0.0.10"), runner, ports=[3306, 22, 80])
+    assert runner.calls == [build_scan_command("10.0.0.10", ports=[22, 80, 3306])]
+
+
+async def test_scan_host_con_puertos_no_validos_falla_antes_de_lanzar_nmap() -> None:
+    runner = FakeProcessRunner(stdout=fixture("sv_o_victima01.xml"))
+    with pytest.raises(ValueError, match="ports"):
+        await scan_host(IPv4Address("10.0.0.10"), runner, ports=[])
+    assert runner.calls == []
 
 
 async def test_scan_host_devuelve_la_huella_de_la_direccion_pedida() -> None:

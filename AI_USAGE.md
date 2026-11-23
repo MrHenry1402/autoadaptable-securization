@@ -169,3 +169,10 @@ los commits con código generado llevan el trailer `AI-Assisted: Claude Code`.
 - **Qué se generó:** instalación de Nmap 7.993 (instalador oficial, firma Authenticode y SHA256 verificados contra nmap.org; Npcap instalado por el usuario desde el asistente) y la anotación de L2 en docs/PLAN.md. Hallazgo: sin `-p`, nmap no ve Redis (6379) en victima-02 aunque el perfilador por SSH sí lo detecta.
 - **Qué se modificó a mano:** nada en el código; el usuario aceptó el UAC y completó el asistente de Npcap.
 - **Commit(s):** ver el PR de la rama feature/integracion-lab.
+
+### 2026-11-23 - L2: escaneo limitado a los puertos del perfil
+- **Herramienta:** Claude Code (Claude Opus 5.5)
+- **Resumen del prompt:** corregir que nmap no viera Redis (6379) en victima-02 haciendo que el escaneo cubra los puertos del perfil del host. Tests primero.
+- **Qué se generó:** `ports` opcional en `build_scan_command` y `scan_host` (`-p` con puertos validados, ordenados y sin duplicados; lista vacía, fuera de rango o no entera → `ValueError` antes de lanzar nmap), `profile_tcp_ports` y sus tests en tests/test_escaneo.py.
+- **Qué se modificó a mano:** nada; ruff, mypy, bandit y pytest (396 tests, 98%) en verde, y verificado contra el laboratorio real: con los puertos del perfil, nmap detecta 22/80/3306 en victima-01 y 21/22/6379 en victima-02.
+- **Commit(s):** ver el PR de la rama feature/l2-puertos-perfil.
