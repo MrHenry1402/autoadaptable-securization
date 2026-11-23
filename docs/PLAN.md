@@ -42,7 +42,7 @@ Fuera del MVP: Cowrie, Windows, Scapy, comparación de modelos y la API de Anthr
       falso en tests
 - [x] S9 Plan de despliegue en modo simulación y aprobación manual del operador
       (`DeploymentPlan`); nunca sobrescribe ficheros; sin aprobación no se despliega
-- [ ] S10 Eventos: parser de logs de OpenCanary, accesos a breadcrumbs y correlación por
+- [x] S10 Eventos: parser de logs de OpenCanary, accesos a breadcrumbs y correlación por
       campaña
 - [ ] S11 Respuesta: modos observación, contención y escalado; reglas de nftables como
       lista de argumentos (revisión línea a línea)
