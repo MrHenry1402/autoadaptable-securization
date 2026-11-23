@@ -16,6 +16,7 @@ la imagen oficial `thinkst/opencanary` (OpenCanary 0.9.10), guardado en
 `securization/data/opencanary_base.json`, y contra un señuelo real en el laboratorio.
 """
 
+import hashlib
 import json
 import re
 from abc import ABC, abstractmethod
@@ -59,7 +60,6 @@ _OPENCANARY_BASE = "data/opencanary_base.json"
 _FTP_CODE = re.compile(r"^220[ -]")
 
 _LINUX_WHITELIST_DIRS: tuple[str, ...] = ("/home", "/root", "/var/backups")
-_LINUX_HOME_FALLBACK = "/home/admin"
 
 
 class BreadcrumbError(Exception):
@@ -72,6 +72,16 @@ class CollisionError(Exception):
 
 class CampaignNotFoundError(Exception):
     """No hay una campaña guardada con ese `campaign_id`."""
+
+
+class DecoyConfig(BaseModel):
+    """Identidad y configuración de OpenCanary de un deception host."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    node_id: str
+    address: IPv4Address
+    opencanary_config: dict[str, bool | int | str]
 
 
 class Breadcrumb(BaseModel):
@@ -87,6 +97,8 @@ class Breadcrumb(BaseModel):
 
 def validate_breadcrumb(breadcrumb: Breadcrumb, whitelist_dirs: Sequence[str]) -> None:
     """Comprueba la lista blanca de rutas, los permisos y el límite de tamaño."""
+    if ".." in breadcrumb.path.split("/"):
+        raise BreadcrumbError(f"ruta con '..': {breadcrumb.path}")
     if not any(
         breadcrumb.path == directorio or breadcrumb.path.startswith(f"{directorio.rstrip('/')}/")
         for directorio in whitelist_dirs
@@ -121,80 +133,176 @@ class BreadcrumbCatalog(ABC):
     os_family: ClassVar[OsFamily]
 
     @abstractmethod
-    def generate(self, profile: HostProfile, known_paths: Iterable[str] = ()) -> list[Breadcrumb]:
-        """Genera los breadcrumbs deterministas coherentes con el perfil del host."""
+    def generate(
+        self,
+        profile: HostProfile,
+        decoy: DecoyConfig,
+        *,
+        home_dir: str,
+        known_paths: Iterable[str] = (),
+    ) -> list[Breadcrumb]:
+        """Genera los breadcrumbs del host, que llevan a los servicios del señuelo.
+
+        `home_dir` es el home del usuario de gestión en el host real: los breadcrumbs se
+        plantan ahí porque es escribible sin privilegios y no hace falta crear directorios.
+        """
 
 
-def _linux_home_dir(profile: HostProfile) -> str:
-    """Directorio base de los breadcrumbs de usuario: `/root` si existe, si no un `/home/*`."""
-    if "/root" in profile.top_level_dirs:
-        return "/root"
-    return _LINUX_HOME_FALLBACK
+class BreadcrumbCredential(BaseModel):
+    """Credencial falsa que un breadcrumb ofrece para un servicio del señuelo."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    username: str
+    password: str
 
 
-def _env_template() -> str:
-    return (
-        "APP_ENV=production\n"
-        "DB_HOST=127.0.0.1\n"
-        "DB_NAME=app\n"
-        "DB_USER=app_svc\n"
-        "DB_PASSWORD=Tr0ub4dor&3-cebo\n"
-        "API_KEY=sk-cebo-4f3c2a1e9d7b6c5a\n"
+# Servicios del señuelo que registran credenciales en OpenCanary (comprobado en L4 con
+# alertas reales: FTP 2000, HTTP 3001, SSH 4002, MySQL 8001, Redis 17001) y el usuario
+# que se ofrece para cada uno.
+_CREDENTIAL_USERS: dict[str, str] = {
+    "mysql": "app_svc",
+    "http": "intranet_admin",
+    "ftp": "backup",
+    "redis": "default",
+    "ssh": "deploy",
+}
+_CREDENTIAL_CHARSET = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+_CREDENTIAL_LEN = 16
+
+
+def _active_credential_services(decoy: DecoyConfig) -> dict[str, int]:
+    """Servicios con credenciales que el señuelo tiene activos, con su puerto."""
+    config = decoy.opencanary_config
+    activos: dict[str, int] = {}
+    for servicio in _CREDENTIAL_USERS:
+        puerto = config.get(f"{servicio}.port")
+        if config.get(f"{servicio}.enabled") is True and type(puerto) is int:
+            activos[servicio] = puerto
+    return activos
+
+
+def _password(node_id: str, servicio: str) -> str:
+    """Contraseña determinista y distinta por señuelo y servicio (atribuye la alerta)."""
+    resumen = hashlib.sha256(f"{node_id}:{servicio}".encode()).digest()
+    return "".join(
+        _CREDENTIAL_CHARSET[b % len(_CREDENTIAL_CHARSET)] for b in resumen[:_CREDENTIAL_LEN]
     )
 
 
-def _bash_history_template() -> str:
-    return (
-        "ls -la /var/backups\n"
-        "mysql -u app_svc -p app\n"
-        "scp backup.sql admin@10.0.0.5:/tmp/\n"
-        "ssh admin@10.0.0.5\n"
-        "sudo cat /var/backups/backup.sql | head\n"
-    )
+def breadcrumb_credentials(decoy: DecoyConfig) -> dict[str, BreadcrumbCredential]:
+    """Credenciales que ofrecen los breadcrumbs de un señuelo, por servicio activo.
+
+    Sirven para reconocer en las alertas de OpenCanary un intento con un breadcrumb.
+    """
+    return {
+        servicio: BreadcrumbCredential(
+            username=_CREDENTIAL_USERS[servicio], password=_password(decoy.node_id, servicio)
+        )
+        for servicio in _active_credential_services(decoy)
+    }
 
 
-def _backup_sql_template() -> str:
-    return (
-        "-- backup generado automaticamente\n"
-        "CREATE TABLE users (id INT, username VARCHAR(32), password_hash VARCHAR(64));\n"
-        "INSERT INTO users VALUES (1, 'admin', '5f4dcc3b5aa765d61d8327deb882cf99');\n"
-        "INSERT INTO users VALUES (2, 'app_svc', 'e99a18c428cb38d5f260853678922e03');\n"
-    )
+def _env_template(ip: str, puertos: dict[str, int], cred: dict[str, BreadcrumbCredential]) -> str:
+    lineas = ["APP_ENV=production"]
+    if "mysql" in puertos:
+        lineas += [
+            f"DB_HOST={ip}",
+            f"DB_PORT={puertos['mysql']}",
+            "DB_NAME=app",
+            f"DB_USER={cred['mysql'].username}",
+            f"DB_PASSWORD={cred['mysql'].password}",
+        ]
+    if "redis" in puertos:
+        lineas.append(f"REDIS_URL=redis://:{cred['redis'].password}@{ip}:{puertos['redis']}/0")
+    if "http" in puertos:
+        lineas += [
+            f"INTRANET_URL=http://{ip}:{puertos['http']}/",
+            f"INTRANET_USER={cred['http'].username}",
+            f"INTRANET_PASSWORD={cred['http'].password}",
+        ]
+    return "\n".join(lineas) + "\n"
 
 
-def _fake_ssh_key_template() -> str:
-    return (
-        "-----BEGIN OPENSSH PRIVATE KEY-----\n"
-        "Y2VibzFmYWtlc3Noa2V5bm90cmVhbGRvbm90dXNlY2VibzJmYWtlc3Noa2V5\n"
-        "bm90cmVhbGRvbm90dXNlY2VibzNmYWtlc3Noa2V5bm90cmVhbGRvbm90dXNl\n"
-        "-----END OPENSSH PRIVATE KEY-----\n"
-    )
+def _my_cnf_template(ip: str, puerto: int, cred: BreadcrumbCredential) -> str:
+    return f"[client]\nhost={ip}\nport={puerto}\nuser={cred.username}\npassword={cred.password}\n"
+
+
+def _netrc_template(ip: str, cred: BreadcrumbCredential) -> str:
+    return f"machine {ip} login {cred.username} password {cred.password}\n"
+
+
+def _db_backup_template(ip: str) -> str:
+    # Es el texto de un fichero cebo, no una consulta: nunca se ejecuta contra una base de
+    # datos. El cuerpo va aparte para que no parezca SQL construido por concatenación.
+    return f"-- Host: {ip}    Database: app\n" + _DB_BACKUP_BODY
+
+
+_DB_BACKUP_BODY = (
+    "-- ------------------------------------------------------\n"
+    "CREATE TABLE users (id INT, username VARCHAR(32), password_hash VARCHAR(64));\n"
+    "INSERT INTO users VALUES (1, 'admin', '5f4dcc3b5aa765d61d8327deb882cf99');\n"
+    "INSERT INTO users VALUES (2, 'app_svc', 'e99a18c428cb38d5f260853678922e03');\n"
+)
+
+
+def _access_notes_template(
+    ip: str, puertos: dict[str, int], cred: dict[str, BreadcrumbCredential]
+) -> str:
+    lineas = [f"Accesos al servidor {ip}"]
+    if "ssh" in puertos:
+        c = cred["ssh"]
+        lineas.append(f"- ssh -p {puertos['ssh']} {c.username}@{ip}  (clave: {c.password})")
+    if "ftp" in puertos:
+        c = cred["ftp"]
+        lineas.append(f"- ftp {ip}  usuario {c.username} / {c.password}")
+    if "http" in puertos:
+        c = cred["http"]
+        lineas.append(f"- intranet http://{ip}:{puertos['http']}/  {c.username} / {c.password}")
+    if "mysql" in puertos:
+        c = cred["mysql"]
+        lineas.append(f"- base de datos: mysql -h {ip} -P {puertos['mysql']} -u {c.username} -p")
+    return "\n".join(lineas) + "\n"
 
 
 class LinuxBreadcrumbCatalog(BreadcrumbCatalog):
-    """Catálogo de breadcrumbs para hosts Linux."""
+    """Catálogo de breadcrumbs para hosts Linux.
+
+    Cada fichero lleva solo a servicios activos del señuelo (un breadcrumb hacia un puerto
+    cerrado no dispara ninguna alerta), con credenciales propias de la campaña. Se plantan
+    directamente en el home del usuario de gestión, sin subdirectorios, y nunca con
+    nombres que casi siempre existen (`.bash_history`, `.ssh/`...), porque nunca se
+    sobrescribe un fichero real.
+    """
 
     os_family: ClassVar[OsFamily] = OsFamily.LINUX
 
-    def generate(self, profile: HostProfile, known_paths: Iterable[str] = ()) -> list[Breadcrumb]:
-        home_dir = _linux_home_dir(profile)
+    def generate(
+        self,
+        profile: HostProfile,
+        decoy: DecoyConfig,
+        *,
+        home_dir: str,
+        known_paths: Iterable[str] = (),
+    ) -> list[Breadcrumb]:
+        ip = str(decoy.address)
+        puertos = _active_credential_services(decoy)
+        cred = breadcrumb_credentials(decoy)
+        base = home_dir.rstrip("/")
+        contenidos: list[tuple[str, str]] = []
+        if puertos.keys() & {"mysql", "redis", "http"}:
+            contenidos.append((".env", _env_template(ip, puertos, cred)))
+        if "mysql" in puertos:
+            contenidos.append((".my.cnf", _my_cnf_template(ip, puertos["mysql"], cred["mysql"])))
+            contenidos.append(("db_backup.sql", _db_backup_template(ip)))
+        if "ftp" in puertos:
+            contenidos.append((".netrc", _netrc_template(ip, cred["ftp"])))
+        if puertos:
+            contenidos.append(("notas_acceso.txt", _access_notes_template(ip, puertos, cred)))
+
         breadcrumbs = [
-            Breadcrumb(host_id=profile.host_id, path=f"{home_dir}/.env", content=_env_template()),
-            Breadcrumb(
-                host_id=profile.host_id,
-                path=f"{home_dir}/.bash_history",
-                content=_bash_history_template(),
-            ),
-            Breadcrumb(
-                host_id=profile.host_id,
-                path="/var/backups/backup.sql",
-                content=_backup_sql_template(),
-            ),
-            Breadcrumb(
-                host_id=profile.host_id,
-                path=f"{home_dir}/.ssh/id_rsa",
-                content=_fake_ssh_key_template(),
-            ),
+            Breadcrumb(host_id=profile.host_id, path=f"{base}/{nombre}", content=texto)
+            for nombre, texto in contenidos
         ]
         for breadcrumb in breadcrumbs:
             validate_breadcrumb(breadcrumb, _LINUX_WHITELIST_DIRS)
@@ -274,16 +382,6 @@ def render_opencanary_conf(config: Mapping[str, bool | int | str]) -> str:
     return json.dumps(base, indent=2, ensure_ascii=False) + "\n"
 
 
-class DecoyConfig(BaseModel):
-    """Identidad y configuración de OpenCanary de un deception host."""
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    node_id: str
-    address: IPv4Address
-    opencanary_config: dict[str, bool | int | str]
-
-
 class Campaign(BaseModel):
     """Campaña: señuelo (deception host) y breadcrumbs generados para un host real."""
 
@@ -301,20 +399,25 @@ def build_campaign(
     campaign_id: str,
     decoy_node_id: str,
     decoy_address: IPv4Address,
+    home_dir: str,
     known_paths: Iterable[str] = (),
 ) -> Campaign:
     """Genera la campaña determinista (H2) de un host: señuelo + breadcrumbs.
 
     `decoy_node_id` y `decoy_address` los decide quien llama (por ejemplo una IP libre de
     `securization.escaneo.find_free_ips`); aquí solo se valida que no sea la del host real.
+    Primero se construye el señuelo y después los breadcrumbs, que llevan a sus servicios.
+    `home_dir` es el home del usuario de gestión en el host real, donde se plantan.
     """
     if decoy_address == profile.address:
         raise ValueError(f"la dirección del señuelo no puede ser la del host real: {decoy_address}")
-    breadcrumbs = get_catalog(profile.os_family).generate(profile, known_paths=known_paths)
     decoy = DecoyConfig(
         node_id=decoy_node_id,
         address=decoy_address,
         opencanary_config=build_opencanary_config(profile, node_id=decoy_node_id),
+    )
+    breadcrumbs = get_catalog(profile.os_family).generate(
+        profile, decoy, home_dir=home_dir, known_paths=known_paths
     )
     return Campaign(
         campaign_id=campaign_id,

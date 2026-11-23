@@ -21,6 +21,7 @@ from securization.generador import (
     UnsupportedOsFamilyError,
     build_campaign,
     build_opencanary_config,
+    get_catalog,
     render_opencanary_conf,
 )
 from securization.modelos import HostProfile, OsFamily, ServiceInfo
@@ -229,6 +230,7 @@ def campana(**cambios: object) -> Campaign:
         "campaign_id": "campana-01",
         "decoy_node_id": "victima-01-decoy",
         "decoy_address": IPv4Address("10.0.0.50"),
+        "home_dir": "/home/lab",
     }
     datos.update(cambios)
     return build_campaign(**datos)  # type: ignore[arg-type]
@@ -253,6 +255,15 @@ def test_build_campaign_incluye_los_breadcrumbs_del_catalogo() -> None:
     breadcrumbs = campana().breadcrumbs
     assert breadcrumbs
     assert all(b.host_id == "victima-01" for b in breadcrumbs)
+
+
+def test_build_campaign_los_breadcrumbs_apuntan_a_su_senuelo() -> None:
+    c = campana()
+    assert c.breadcrumbs == get_catalog(OsFamily.LINUX).generate(
+        PERFIL, c.decoy, home_dir="/home/lab"
+    )
+    assert any("10.0.0.50" in b.content for b in c.breadcrumbs)
+    assert all(b.path.startswith("/home/lab/") for b in c.breadcrumbs)
 
 
 def test_build_campaign_rechaza_direccion_del_senuelo_igual_a_la_real() -> None:

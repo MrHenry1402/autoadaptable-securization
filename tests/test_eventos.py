@@ -19,9 +19,10 @@ from securization.eventos import (
     OpenCanaryEvent,
     ParseError,
     UnknownCampaignError,
+    breadcrumb_service_used,
     parse_opencanary_log,
 )
-from securization.generador import Campaign, DecoyConfig
+from securization.generador import Campaign, DecoyConfig, breadcrumb_credentials
 
 LINEA_SSH = (
     '{"node_id": "victima-01-decoy", "src_host": "10.0.0.20", "src_port": 54321, '
@@ -224,3 +225,129 @@ def test_open_canary_event_rechaza_campos_extra() -> None:
                 "extra": "no",
             }
         )
+
+
+# --- breadcrumb_service_used (L4): atribuir una alerta al breadcrumb usado ---------
+
+SENUELO_FICHEROS = DecoyConfig(
+    node_id="files-02",
+    address=IPv4Address("10.0.0.51"),
+    opencanary_config={
+        "device.node_id": "files-02",
+        "ftp.enabled": True,
+        "ftp.port": 21,
+        "ssh.enabled": True,
+        "ssh.port": 22,
+        "redis.enabled": True,
+        "redis.port": 6379,
+    },
+)
+SENUELO_WEB = DecoyConfig(
+    node_id="web-01",
+    address=IPv4Address("10.0.0.50"),
+    opencanary_config={
+        "device.node_id": "web-01",
+        "http.enabled": True,
+        "http.port": 80,
+        "mysql.enabled": True,
+        "mysql.port": 3306,
+    },
+)
+
+# Alertas reales lanzadas desde las víctimas con credenciales de prueba (no de breadcrumb):
+# MySQL 8001, HTTP 3001, Redis 17001 y FTP 2000.
+ALERTAS_CREDENCIALES = (
+    (Path(__file__).parent / "fixtures" / "opencanary" / "alertas_credenciales.jsonl")
+    .read_text(encoding="utf-8")
+    .splitlines()
+)
+
+
+def _alerta(node_id: str, logtype: int, dst_port: int, **logdata: str) -> OpenCanaryEvent:
+    return OpenCanaryEvent(
+        node_id=node_id,
+        src_host=IPv4Address("10.0.0.11"),
+        src_port=40000,
+        dst_host=IPv4Address("10.0.0.51"),
+        dst_port=dst_port,
+        logtype=logtype,
+        timestamp=datetime(2026, 11, 23, 3, 0),
+        logdata=logdata,
+    )
+
+
+def test_alertas_reales_de_credenciales_se_interpretan_y_vienen_de_las_victimas() -> None:
+    eventos = [parse_opencanary_log(linea) for linea in ALERTAS_CREDENCIALES]
+    assert {e.logtype for e in eventos} == {2000, 3001, 8001, 17001}
+    assert {e.src_host for e in eventos} == {IPv4Address("10.0.0.10"), IPv4Address("10.0.0.11")}
+
+
+def test_alertas_reales_con_credenciales_de_prueba_no_se_atribuyen_a_un_breadcrumb() -> None:
+    senuelos = {"web-01": SENUELO_WEB, "files-02": SENUELO_FICHEROS}
+    for linea in ALERTAS_CREDENCIALES:
+        evento = parse_opencanary_log(linea)
+        assert breadcrumb_service_used(evento, senuelos[evento.node_id]) is None
+
+
+def test_login_ftp_con_la_credencial_del_breadcrumb() -> None:
+    cred = breadcrumb_credentials(SENUELO_FICHEROS)["ftp"]
+    evento = _alerta("files-02", 2000, 21, USERNAME=cred.username, PASSWORD=cred.password)
+    assert breadcrumb_service_used(evento, SENUELO_FICHEROS) == "ftp"
+
+
+def test_login_ssh_con_la_credencial_del_breadcrumb() -> None:
+    cred = breadcrumb_credentials(SENUELO_FICHEROS)["ssh"]
+    evento = _alerta("files-02", 4002, 22, USERNAME=cred.username, PASSWORD=cred.password)
+    assert breadcrumb_service_used(evento, SENUELO_FICHEROS) == "ssh"
+
+
+def test_login_con_usuario_del_breadcrumb_pero_otra_clave_no_cuenta() -> None:
+    cred = breadcrumb_credentials(SENUELO_FICHEROS)["ftp"]
+    evento = _alerta("files-02", 2000, 21, USERNAME=cred.username, PASSWORD="otra")
+    assert breadcrumb_service_used(evento, SENUELO_FICHEROS) is None
+
+
+def test_auth_de_redis_con_la_clave_del_breadcrumb() -> None:
+    clave = breadcrumb_credentials(SENUELO_FICHEROS)["redis"].password
+    evento = _alerta("files-02", 17001, 6379, CMD="AUTH", ARGS=clave)
+    assert breadcrumb_service_used(evento, SENUELO_FICHEROS) == "redis"
+
+
+def test_auth_de_redis_con_usuario_y_clave_del_breadcrumb() -> None:
+    clave = breadcrumb_credentials(SENUELO_FICHEROS)["redis"].password
+    evento = _alerta("files-02", 17001, 6379, CMD="AUTH", ARGS=f"default {clave}")
+    assert breadcrumb_service_used(evento, SENUELO_FICHEROS) == "redis"
+
+
+def test_comando_de_redis_que_no_es_auth_no_cuenta() -> None:
+    clave = breadcrumb_credentials(SENUELO_FICHEROS)["redis"].password
+    evento = _alerta("files-02", 17001, 6379, CMD="GET", ARGS=clave)
+    assert breadcrumb_service_used(evento, SENUELO_FICHEROS) is None
+
+
+def test_mysql_se_atribuye_por_usuario_porque_la_clave_llega_cifrada() -> None:
+    cred = breadcrumb_credentials(SENUELO_WEB)["mysql"]
+    evento = _alerta("web-01", 8001, 3306, USERNAME=cred.username, PASSWORD="40e8ca56")
+    assert breadcrumb_service_used(evento, SENUELO_WEB) == "mysql"
+
+
+def test_login_http_con_la_credencial_del_breadcrumb() -> None:
+    cred = breadcrumb_credentials(SENUELO_WEB)["http"]
+    evento = _alerta("web-01", 3001, 80, USERNAME=cred.username, PASSWORD=cred.password)
+    assert breadcrumb_service_used(evento, SENUELO_WEB) == "http"
+
+
+def test_alerta_de_otro_senuelo_no_se_atribuye() -> None:
+    cred = breadcrumb_credentials(SENUELO_FICHEROS)["ftp"]
+    evento = _alerta("web-01", 2000, 21, USERNAME=cred.username, PASSWORD=cred.password)
+    assert breadcrumb_service_used(evento, SENUELO_FICHEROS) is None
+
+
+def test_servicio_que_el_senuelo_no_tiene_activo_no_se_atribuye() -> None:
+    evento = _alerta("files-02", 8001, 3306, USERNAME="app_svc", PASSWORD="x")
+    assert breadcrumb_service_used(evento, SENUELO_FICHEROS) is None
+
+
+def test_logtype_sin_credenciales_no_se_atribuye() -> None:
+    evento = _alerta("files-02", 4000, 22, SESSION="1")
+    assert breadcrumb_service_used(evento, SENUELO_FICHEROS) is None

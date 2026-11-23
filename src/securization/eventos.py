@@ -19,7 +19,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from securization.generador import Campaign
+from securization.generador import Campaign, DecoyConfig, breadcrumb_credentials
 from securization.parsing import ParseError
 
 __all__ = [
@@ -29,6 +29,7 @@ __all__ = [
     "OpenCanaryEvent",
     "ParseError",
     "UnknownCampaignError",
+    "breadcrumb_service_used",
     "parse_opencanary_log",
 ]
 
@@ -103,6 +104,45 @@ class CorrelatedEvent(BaseModel):
     summary: str
     timestamp: datetime
     source_host: IPv4Address | None = None
+
+
+# logtype de OpenCanary 0.9.10 que registra credenciales -> servicio (comprobado en L4).
+_CREDENTIAL_LOGTYPES: dict[int, str] = {
+    2000: "ftp",
+    3001: "http",
+    4002: "ssh",
+    8001: "mysql",
+    17001: "redis",
+}
+
+
+def breadcrumb_service_used(event: OpenCanaryEvent, decoy: DecoyConfig) -> str | None:
+    """Servicio cuyo breadcrumb se usó en la alerta del señuelo, o None.
+
+    Compara las credenciales registradas por OpenCanary con las que ofrecen los
+    breadcrumbs de ese señuelo (`breadcrumb_credentials`). MySQL se reconoce solo por el
+    usuario, porque OpenCanary registra la contraseña cifrada con el reto del protocolo.
+    """
+    servicio = _CREDENTIAL_LOGTYPES.get(event.logtype)
+    if event.node_id != decoy.node_id or servicio is None:
+        return None
+    credencial = breadcrumb_credentials(decoy).get(servicio)
+    if credencial is None:
+        return None
+    datos = event.logdata
+    if servicio == "redis":
+        usada = (
+            datos.get("CMD", "").upper() == "AUTH"
+            and credencial.password in datos.get("ARGS", "").split()
+        )
+    elif servicio == "mysql":
+        usada = datos.get("USERNAME") == credencial.username
+    else:
+        usada = (
+            datos.get("USERNAME") == credencial.username
+            and datos.get("PASSWORD") == credencial.password
+        )
+    return servicio if usada else None
 
 
 class UnknownCampaignError(Exception):

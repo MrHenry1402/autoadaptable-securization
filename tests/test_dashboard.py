@@ -39,6 +39,7 @@ def campana() -> Campaign:
         campaign_id="campana-01",
         decoy_node_id="victima-01-decoy",
         decoy_address=IPv4Address("10.0.0.50"),
+        home_dir="/home/lab",
     )
 
 
