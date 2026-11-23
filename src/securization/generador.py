@@ -263,7 +263,7 @@ def render_opencanary_conf(config: Mapping[str, bool | int | str]) -> str:
     módulos que vienen del perfil. Rechaza claves que OpenCanary no conoce, para que una
     errata no deje un servicio activado o mal configurado sin aviso.
     """
-    base = json.loads(resources.files("securization").joinpath(_OPENCANARY_BASE).read_text())
+    base = json.loads(resources.files("securization").joinpath(_OPENCANARY_BASE).read_text("utf-8"))
     desconocidas = sorted(set(config) - set(base))
     if desconocidas:
         raise ValueError(f"claves que OpenCanary no conoce: {', '.join(desconocidas)}")

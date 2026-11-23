@@ -1,12 +1,14 @@
 """Tests de `eventos`: parseo de logs de OpenCanary y correlación por campaña.
 
 La entrada (una línea de log) se trata como no confiable: nunca se asume que es JSON
-válido ni que tiene los campos esperados. El esquema de los logs de OpenCanary usado aquí
-está tomado de su documentación pública, no verificado contra una instalación real (L3).
+válido ni que tiene los campos esperados. El esquema de los logs de OpenCanary está
+comprobado (L3) con alertas reales del laboratorio en `fixtures/opencanary/`.
 """
 
+import json
 from datetime import datetime
 from ipaddress import IPv4Address
+from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
@@ -41,6 +43,37 @@ CAMPAIGN = Campaign(
 
 
 # --- parse_opencanary_log -----------------------------------------------------
+
+# Alertas reales de OpenCanary 0.9.10 (señuelo de victima-02 en el laboratorio, L3):
+# conexión y login SSH (4000, 4001, 4002), login FTP (2000) y comandos Redis (17001).
+ALERTAS_REALES = (
+    (Path(__file__).parent / "fixtures" / "opencanary" / "alertas_reales.jsonl")
+    .read_text(encoding="utf-8")
+    .splitlines()
+)
+
+
+def test_parse_opencanary_log_interpreta_todas_las_alertas_reales() -> None:
+    eventos = [parse_opencanary_log(linea) for linea in ALERTAS_REALES]
+    assert {e.logtype for e in eventos} == {2000, 4000, 4001, 4002, 17001}
+    assert all(e.node_id == "spike-v02" for e in eventos)
+    assert all(e.src_host == IPv4Address("10.0.0.1") for e in eventos)
+    assert all(e.dst_host == IPv4Address("10.0.0.50") for e in eventos)
+
+
+def test_parse_opencanary_log_alerta_real_de_login_ssh() -> None:
+    linea = next(lin for lin in ALERTAS_REALES if json.loads(lin)["logtype"] == 4002)
+    evento = parse_opencanary_log(linea)
+    assert evento.dst_port == 22
+    assert evento.logdata["USERNAME"] == "root"
+    assert evento.logdata["LOCALVERSION"] == "SSH-2.0-OpenSSH_10.0p2 Debian-7+deb13u4"
+
+
+def test_parse_opencanary_log_alerta_real_de_login_ftp() -> None:
+    linea = next(lin for lin in ALERTAS_REALES if json.loads(lin)["logtype"] == 2000)
+    evento = parse_opencanary_log(linea)
+    assert evento.dst_port == 21
+    assert evento.logdata["USERNAME"] == "admin"
 
 
 def test_parse_opencanary_log_campos_basicos() -> None:

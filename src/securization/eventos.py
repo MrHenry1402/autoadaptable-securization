@@ -1,9 +1,8 @@
 """Eventos: parseo de logs de OpenCanary y accesos a breadcrumbs, correlación por campaña.
 
-Aviso: el esquema de log usado aquí (`node_id`, `src_host`, `src_port`, `dst_host`,
-`dst_port`, `logtype`, `local_time`, `logdata`) está tomado de la documentación pública de
-OpenCanary y no se ha comprobado contra una instalación real. Antes de usarlo de verdad
-(L3), hay que verificarlo contra los logs que genere el OpenCanary del laboratorio.
+El esquema de log usado aquí (`node_id`, `src_host`, `src_port`, `dst_host`, `dst_port`,
+`logtype`, `local_time`, `logdata`) está comprobado (L3) contra alertas reales de
+OpenCanary 0.9.10 en el laboratorio (`tests/fixtures/opencanary/alertas_reales.jsonl`).
 
 Cada línea de log se trata como no confiable (S2/S3): se parsea con cuidado y cualquier
 campo que falte o no tenga el tipo esperado produce un `ParseError`, nunca un evento a

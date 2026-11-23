@@ -79,7 +79,14 @@ Fuera del MVP: Cowrie, Windows, Scapy, comparación de modelos y la API de Anthr
       `verify_decoy`. Hallazgos de la línea base H2 para H4: el saludo de MySQL del
       señuelo revela `5.5.43-0ubuntu0.14.04.1` y Redis no imita el modo protegido;
       ambos pasan justo en el umbral (90), así que el verificador pesa poco un banner
-      que delata el SO)
+      que delata el SO. El 90 de web-01 está además inflado en HTTP: el real responde
+      `200` con su página "Intranet" y el señuelo `302` a un login de NAS Synology
+      (`http.skin: nasLogin`), pero nmap solo ve `nginx` en ambos y el verificador lo
+      cuenta como coincidencia. El banner real de MariaDB incluye la IP del escáner
+      (`Host '10.0.0.1' is not allowed`), así que ningún señuelo podrá igualarlo; y ese
+      texto queda en el perfil guardado, así que antes de L5 hay que comprobar que
+      `build_profile_payload` seudonimiza también las IPs que van dentro de los banners.
+      Reproducible con `lab/e2e_l3.py` en la rama chore/h0-laboratorio-virtualbox)
 - [ ] L4 Plantado real de breadcrumbs por SFTP y alertas de extremo a extremo
       (la parte de plantado está implementada y probada con un `SftpTransport` falso —
       `AsyncSftpTransport`/`plant_breadcrumbs` en `desplegador.py`, creación exclusiva
