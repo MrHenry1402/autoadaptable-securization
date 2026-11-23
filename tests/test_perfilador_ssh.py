@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from securization.modelos import HostProfile, OsFamily, ServiceInfo
-from securization.parsers_linux import LS_ROOT_CMD, OS_RELEASE_CMD, SS_CMD
+from securization.parsers_linux import DPKG_CMD, LS_ROOT_CMD, OS_RELEASE_CMD, SS_CMD
 from securization.perfilador import LinuxProfiler, ProfilingError
 
 FIXTURES = Path(__file__).parent / "fixtures" / "linux"
@@ -99,7 +99,7 @@ async def test_perfilado_no_calcula_ips_libres() -> None:
 async def test_perfilado_ejecuta_los_tres_comandos_esperados() -> None:
     transporte = transporte_debian()
     await LinuxProfiler().profile("victima-01", IPv4Address("10.0.0.10"), transporte)
-    assert set(transporte.calls) == {OS_RELEASE_CMD, SS_CMD, LS_ROOT_CMD}
+    assert set(transporte.calls) == {OS_RELEASE_CMD, SS_CMD, LS_ROOT_CMD, DPKG_CMD}
 
 
 # --- Propagación de errores -------------------------------------------------
@@ -121,3 +121,27 @@ async def test_perfilado_propaga_fallo_de_parseo_con_error_claro() -> None:
     )
     with pytest.raises(ProfilingError, match="victima-01"):
         await LinuxProfiler().profile("victima-01", IPv4Address("10.0.0.10"), transporte)
+
+
+# --- Versiones de paquetes (H4): de mejor esfuerzo ------------------------------
+
+
+async def test_perfilado_guarda_las_versiones_de_los_paquetes_de_servicio() -> None:
+    respuestas = {
+        OS_RELEASE_CMD: fixture("os_release_debian12.txt"),
+        SS_CMD: fixture("ss_tlnp_root.txt"),
+        LS_ROOT_CMD: fixture("ls_root.txt"),
+        DPKG_CMD: fixture("dpkg_query_victima01.txt"),
+    }
+    perfil = await LinuxProfiler().profile(
+        "victima-01", IPv4Address("10.0.0.10"), FakeSshTransport(respuestas)
+    )
+    assert perfil.packages["mariadb-server"] == "1:11.8.9+ds-0+deb13u1"
+
+
+async def test_perfilado_sin_dpkg_deja_los_paquetes_vacios_sin_fallar() -> None:
+    # transporte_debian() no responde a DPKG_CMD: equivale a un Linux sin dpkg.
+    perfil = await LinuxProfiler().profile(
+        "victima-01", IPv4Address("10.0.0.10"), transporte_debian()
+    )
+    assert perfil.packages == {}

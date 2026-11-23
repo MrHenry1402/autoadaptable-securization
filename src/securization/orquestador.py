@@ -16,13 +16,15 @@ tiene sentido cuando también exista la ejecución real de nmap (fuera del alcan
 para S12), para no dejar subcomandos que no hacen nada de verdad.
 """
 
-from collections.abc import Iterable
+import json
+from collections.abc import Awaitable, Callable, Iterable
 from ipaddress import IPv4Address
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
 from securization.desplegador import DeploymentPlan, build_deployment_plan
-from securization.generador import Campaign, build_campaign
+from securization.generador import Campaign, DecoyConfig, adjust_decoy, build_campaign
 from securization.modelos import Fingerprint, HostProfile, PlausibilityReport
 from securization.verificador import DEFAULT_THRESHOLD, verify_decoy
 
@@ -77,3 +79,88 @@ def run_campaign_simulation(
 
     plan = build_deployment_plan(campaign, report, known_paths=known_paths)
     return SimulationResult(campaign=campaign, report=report, attempts=intentos, plan=plan)
+
+
+# --- Bucle cerrado de verificación con el laboratorio (H4) ------------------------
+
+DecoyStarter = Callable[[DecoyConfig], Awaitable[object]]
+DecoyScanner = Callable[[DecoyConfig], Awaitable[Fingerprint]]
+StopReason = Literal["aprobado", "sin_ajustes", "config_repetido", "max_intentos"]
+
+
+class VerificationAttempt(BaseModel):
+    """Un intento del bucle: el config probado y su informe de plausibilidad."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    attempt: int
+    opencanary_config: dict[str, bool | int | str]
+    report: PlausibilityReport
+
+
+class VerificationResult(BaseModel):
+    """Resultado del bucle: la campaña con el último señuelo probado y cada intento."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    campaign: Campaign
+    report: PlausibilityReport
+    attempts: list[VerificationAttempt]
+    stop_reason: StopReason
+
+
+def _config_key(decoy: DecoyConfig) -> str:
+    return json.dumps(decoy.opencanary_config, sort_keys=True)
+
+
+async def run_verification_loop(
+    profile: HostProfile,
+    real_fingerprint: Fingerprint,
+    campaign: Campaign,
+    *,
+    start: DecoyStarter,
+    scan: DecoyScanner,
+    threshold: int = DEFAULT_THRESHOLD,
+    max_attempts: int = 3,
+) -> VerificationResult:
+    """Arranca el señuelo, lo escanea, lo puntúa y lo ajusta hasta que es plausible.
+
+    Para cuando supera el umbral, cuando `adjust_decoy` no propone nada, cuando el ajuste
+    repetiría un config ya probado o al llegar a `max_attempts`. El señuelo solo se
+    arranca para escanearlo en el laboratorio (`start_decoy`, excepción de CLAUDE.md); el
+    despliegue definitivo sigue exigiendo el plan aprobado. Los breadcrumbs no cambian:
+    el ajuste nunca altera qué servicios ofrece el señuelo.
+    """
+    if max_attempts < 1:
+        raise ValueError(f"max_attempts debe ser al menos 1: {max_attempts}")
+    decoy = campaign.decoy
+    probados: set[str] = set()
+    intentos: list[VerificationAttempt] = []
+    motivo: StopReason = "max_intentos"
+    for numero in range(1, max_attempts + 1):
+        probados.add(_config_key(decoy))
+        await start(decoy)
+        informe = verify_decoy(real_fingerprint, await scan(decoy), threshold=threshold)
+        intentos.append(
+            VerificationAttempt(
+                attempt=numero, opencanary_config=dict(decoy.opencanary_config), report=informe
+            )
+        )
+        if informe.passed:
+            motivo = "aprobado"
+            break
+        siguiente = adjust_decoy(profile, decoy, real_fingerprint)
+        if siguiente is None:
+            motivo = "sin_ajustes"
+            break
+        if _config_key(siguiente) in probados:
+            motivo = "config_repetido"
+            break
+        if numero < max_attempts:
+            decoy = siguiente
+    return VerificationResult(
+        campaign=campaign.model_copy(update={"decoy": decoy}),
+        report=intentos[-1].report,
+        attempts=intentos,
+        stop_reason=motivo,
+    )

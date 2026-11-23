@@ -36,7 +36,13 @@ from securization.llm import (
     generate_with_fallback,
     render_untrusted_block,
 )
-from securization.modelos import GenerationQuality, HostProfile, OsFamily, ServiceInfo
+from securization.modelos import (
+    Fingerprint,
+    GenerationQuality,
+    HostProfile,
+    OsFamily,
+    ServiceInfo,
+)
 from securization.parsing import sanitize_text
 from securization.perfilador import UnsupportedOsFamilyError as UnsupportedOsFamilyError
 
@@ -58,6 +64,11 @@ _OPENCANARY_MODULES: dict[str, tuple[str, str | None]] = {
 }
 _OPENCANARY_BASE = "data/opencanary_base.json"
 _FTP_CODE = re.compile(r"^220[ -]")
+# Patrón que OpenCanary 0.9.10 exige a mysql.banner (modules/mysql.py); si no lo cumple,
+# el módulo MySQL no arranca y el puerto desaparece sin ningún error visible.
+_MYSQL_BANNER_RE = re.compile(r"[3456]\.[-_~.+\w]+")
+_UPSTREAM_VERSION_RE = re.compile(r"\d+(?:\.\d+)+")
+_DEBIAN_VERSION_RE = re.compile(r"[0-9][A-Za-z0-9.+~:-]{0,63}")
 
 _LINUX_WHITELIST_DIRS: tuple[str, ...] = ("/home", "/root", "/var/backups")
 
@@ -375,11 +386,76 @@ def render_opencanary_conf(config: Mapping[str, bool | int | str]) -> str:
     desconocidas = sorted(set(config) - set(base))
     if desconocidas:
         raise ValueError(f"claves que OpenCanary no conoce: {', '.join(desconocidas)}")
+    banner_mysql = config.get("mysql.banner")
+    if banner_mysql is not None and not _MYSQL_BANNER_RE.fullmatch(str(banner_mysql)):
+        raise ValueError(
+            f"mysql.banner no admitido por OpenCanary (descartaría el módulo): {banner_mysql!r}"
+        )
     for clave in base:
         if clave.endswith(".enabled"):
             base[clave] = False
     base.update(config)
     return json.dumps(base, indent=2, ensure_ascii=False) + "\n"
+
+
+def mysql_banner_from_package(package: str, version: str) -> str | None:
+    """`mysql.banner` que anunciaría el servidor real instalado desde ese paquete.
+
+    MariaDB 10+ antepone `5.5.5-` por compatibilidad con clientes MySQL antiguos: el
+    paquete Debian `1:11.8.9+ds-0+deb13u1` da `5.5.5-11.8.9-MariaDB-0+deb13u1`, que es lo
+    que muestra `mariadbd --version` en el laboratorio. Devuelve None si la versión no es
+    válida o si OpenCanary no podría anunciarla (solo admite 3.x-6.x).
+    """
+    if package not in ("mariadb-server", "mysql-server") or not _DEBIAN_VERSION_RE.fullmatch(
+        version
+    ):
+        return None
+    sin_epoch = version.split(":", 1)[-1]
+    original, _, revision = sin_epoch.partition("-")
+    numerica = _UPSTREAM_VERSION_RE.match(original)
+    if numerica is None:
+        return None
+    sufijo = f"-{revision}" if revision else ""
+    if package == "mariadb-server":
+        banner = f"5.5.5-{numerica.group()}-MariaDB{sufijo}"
+    else:
+        banner = f"{numerica.group()}{sufijo}"
+    return banner if _MYSQL_BANNER_RE.fullmatch(banner) else None
+
+
+def adjust_decoy(profile: HostProfile, decoy: DecoyConfig, real: Fingerprint) -> DecoyConfig | None:
+    """Siguiente config del señuelo según lo observado en el host real, o None si no cambia.
+
+    Solo toca claves de banner de módulos ya activos: nunca activa ni desactiva un módulo,
+    porque los breadcrumbs de la campaña llevan a esos servicios. Los valores salen del
+    perfil por SSH (versión del paquete de MySQL/MariaDB, que no se ve por red cuando el
+    servidor rechaza al escáner) y de la huella nmap del host real; nunca se inventan.
+    """
+    config = dict(decoy.opencanary_config)
+    propuesta = dict(config)
+
+    if config.get("mysql.enabled") is True:
+        for paquete in ("mariadb-server", "mysql-server"):
+            version = profile.packages.get(paquete)
+            banner = mysql_banner_from_package(paquete, version) if version else None
+            if banner is not None:
+                propuesta["mysql.banner"] = banner
+                break
+
+    reales = {s.port: s for s in real.services if s.protocol == "tcp"}
+    for servicio, (modulo, clave) in _OPENCANARY_MODULES.items():
+        if clave is None or config.get(f"{modulo}.enabled") is not True:
+            continue
+        observado = reales.get(int(config.get(f"{modulo}.port", 0)))
+        if observado is None or observado.name != servicio:
+            continue
+        valor = _opencanary_banner(modulo, observado)
+        if valor:
+            propuesta[f"{modulo}.{clave}"] = valor
+
+    if propuesta == config:
+        return None
+    return decoy.model_copy(update={"opencanary_config": propuesta})
 
 
 class Campaign(BaseModel):
@@ -471,16 +547,47 @@ class CampaignStore:
 
 
 class DecoyIdentity(BaseModel):
-    """Hostname propuesto para el deception host (componente de IA: S8)."""
+    """Hostname propuesto para el deception host (componente de IA: S8).
+
+    Una etiqueta DNS válida (RFC 1123): letras, dígitos y guiones, 1-63 caracteres, sin
+    empezar ni acabar en guion. Una salida que no lo cumple cuenta como no válida.
+    """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    hostname: str
+    hostname: str = Field(pattern=r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$")
+
+
+# Palabras que delatan el engaño en un hostname (medido en L5: qwen3:8b proponía
+# "victima-01-deco" en 24 de 25 intentos).
+_TELLTALE_WORDS = (
+    "decoy",
+    "deco",
+    "honey",
+    "canary",
+    "trap",
+    "fake",
+    "bait",
+    "senuelo",
+    "señuelo",
+    "cebo",
+    "trampa",
+)
+_FALLBACK_SUFFIX = "-bak"
+
+
+def _reveals_deception(hostname: str) -> bool:
+    nombre = hostname.lower()
+    return any(palabra in nombre for palabra in _TELLTALE_WORDS)
 
 
 def _decoy_hostname_fallback(profile: HostProfile) -> DecoyIdentity:
-    """Plantilla de respaldo determinista: `<host_id>-decoy`, sin IA."""
-    return DecoyIdentity(hostname=f"{profile.host_id}-decoy")
+    """Plantilla de respaldo determinista, sin IA: `<host_id>-bak` (un servidor de backup).
+
+    No usa "decoy" ni nada parecido: el nombre del señuelo no puede delatar el engaño.
+    """
+    base = profile.host_id[: 63 - len(_FALLBACK_SUFFIX)].rstrip("-")
+    return DecoyIdentity(hostname=f"{base}{_FALLBACK_SUFFIX}")
 
 
 async def propose_decoy_hostname(
@@ -500,13 +607,22 @@ async def propose_decoy_hostname(
     os_name = sanitize_text(profile.os_name)
     prompt = (
         "Propón un hostname de servidor plausible para un señuelo (deception host) que "
-        "debe encajar con el resto de la red de este host real. Responde solo JSON con la "
+        "debe encajar con el resto de la red de este host real. El nombre no debe revelar "
+        "que es un señuelo: nada como decoy, honeypot, canary, trap o fake; tiene que "
+        "parecer un servidor más del entorno. Responde solo JSON con la "
         'forma {"hostname": "..."}.\n'
         f"host_id del host real (solo para inferir la convención de nombres, no lo copies "
         f"tal cual): {host_id}\n"
         f"Sistema operativo: {os_name}\n"
         f"{bloque_perfil}"
     )
-    return await generate_with_fallback(
+    identidad, calidad = await generate_with_fallback(
         client, prompt, DecoyIdentity, lambda: _decoy_hostname_fallback(profile)
     )
+    if calidad is GenerationQuality.AI and (
+        identidad.hostname.lower() == profile.host_id.lower()
+        or _reveals_deception(identidad.hostname)
+    ):
+        # Copiar el nombre del host real, o uno que delata el engaño, no sirve como señuelo.
+        return _decoy_hostname_fallback(profile), GenerationQuality.FALLBACK
+    return identidad, calidad

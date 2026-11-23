@@ -17,9 +17,11 @@ from sqlmodel import Field, Session, SQLModel
 
 from securization.modelos import HostProfile, OsFamily
 from securization.parsers_linux import (
+    DPKG_CMD,
     LS_ROOT_CMD,
     OS_RELEASE_CMD,
     SS_CMD,
+    parse_dpkg_query,
     parse_os_release,
     parse_ss_listening,
     parse_top_level_dirs,
@@ -124,7 +126,16 @@ class LinuxProfiler(HostProfiler):
             os_name=os_name,
             services=services,
             top_level_dirs=top_level_dirs,
+            packages=await self._service_packages(transport),
         )
+
+    @staticmethod
+    async def _service_packages(transport: SshTransport) -> dict[str, str]:
+        """Versiones de los paquetes de servicio; de mejor esfuerzo (vacío si no hay dpkg)."""
+        try:
+            return parse_dpkg_query(await transport.run(DPKG_CMD))
+        except Exception:
+            return {}
 
 
 _PROFILERS: dict[OsFamily, type[HostProfiler]] = {

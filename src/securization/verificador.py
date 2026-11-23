@@ -10,9 +10,19 @@ La puntuación combina tres componentes con pesos fijos:
 - Servicios (30 puntos): similitud de Jaccard sobre el conjunto de puertos/protocolo
   abiertos. Un servicio que falta en el señuelo y uno que sobra penalizan igual, porque
   ambos lo hacen distinguible de un host real.
-- Banners (30 puntos): de los puertos que ambos exponen, qué fracción tiene el banner
-  idéntico. Si no comparten ningún puerto no hay banners que comparar, y no se penaliza.
+- Banners (30 puntos): de los puertos que ambos exponen, qué fracción tiene el mismo
+  servicio: nombre, producto, versión, extrainfo y banner. Si no comparten ningún puerto
+  no hay nada que comparar, y no se penaliza.
+
+Ajustes de H4, comprobados con escaneos reales del laboratorio (`tests/fixtures/nmap/`):
+- El saludo de MySQL lleva un "salt" aleatorio por conexión; se compara por la versión que
+  anuncia. Sin esto, un señuelo comparado consigo mismo no daba 100.
+- Si un banner del señuelo delata una distribución que el host real no muestra en ninguno
+  de los suyos (el MySQL por defecto de OpenCanary anuncia Ubuntu 14.04 en un Debian), el
+  SO es distinguible aunque `nmap -O` diga Linux en ambos.
 """
+
+import re
 
 from securization.modelos import Fingerprint, PlausibilityReport, ServiceInfo
 
@@ -21,6 +31,52 @@ DEFAULT_THRESHOLD = 90
 _OS_WEIGHT = 40
 _SERVICES_WEIGHT = 30
 _BANNER_WEIGHT = 30
+
+# Saludo de MySQL/MariaDB tal como lo escapa nmap: protocolo 10 (\x0A), versión, \x00, salt.
+_MYSQL_HANDSHAKE = re.compile(r"\\x0A(\d[^\\]*)\\x00")
+_DISTROS = (
+    "debian",
+    "ubuntu",
+    "centos",
+    "red hat",
+    "fedora",
+    "alpine",
+    "suse",
+    "rocky",
+    "almalinux",
+    "raspbian",
+    "freebsd",
+    "windows",
+)
+
+
+def _normalize_banner(banner: str | None) -> str | None:
+    """Banner comparable: el saludo de MySQL se reduce a la versión que anuncia."""
+    if banner is None:
+        return None
+    saludo = _MYSQL_HANDSHAKE.search(banner)
+    return f"mysql-handshake {saludo.group(1)}" if saludo else banner
+
+
+def _service_signature(servicio: ServiceInfo) -> dict[str, str | None]:
+    return {
+        "nombre": servicio.name,
+        "producto": servicio.product,
+        "versión": servicio.version,
+        "extrainfo": servicio.extrainfo,
+        "banner": _normalize_banner(servicio.banner),
+    }
+
+
+def _distros(fingerprint: Fingerprint) -> set[str]:
+    """Distribuciones que mencionan los servicios de una huella."""
+    texto = " ".join(
+        campo.lower()
+        for s in fingerprint.services
+        for campo in (s.product, s.version, s.extrainfo, s.banner)
+        if campo
+    )
+    return {distro for distro in _DISTROS if distro in texto}
 
 
 def _top_os_family(fingerprint: Fingerprint) -> str | None:
@@ -50,6 +106,15 @@ def _compare(real: Fingerprint, decoy: Fingerprint) -> tuple[int, list[str]]:
         os_score = 0
         differences.append(f"SO distinguible: host real={real_family!r} señuelo={decoy_family!r}")
 
+    distros_real = _distros(real)
+    delatadas = _distros(decoy) - distros_real
+    if distros_real and delatadas:
+        os_score = 0
+        differences.append(
+            f"SO distinguible: el señuelo delata {', '.join(sorted(delatadas))} y el host real "
+            f"muestra {', '.join(sorted(distros_real))}"
+        )
+
     # --- Servicios ---
     real_keys = _service_keys(real)
     decoy_keys = _service_keys(decoy)
@@ -74,14 +139,18 @@ def _compare(real: Fingerprint, decoy: Fingerprint) -> tuple[int, list[str]]:
     else:
         coincidencias = 0
         for port, protocol in sorted(intersection):
-            banner_real = real_keys[(port, protocol)].banner
-            banner_decoy = decoy_keys[(port, protocol)].banner
-            if banner_real == banner_decoy:
+            firma_real = _service_signature(real_keys[(port, protocol)])
+            firma_decoy = _service_signature(decoy_keys[(port, protocol)])
+            distintos = [campo for campo in firma_real if firma_real[campo] != firma_decoy[campo]]
+            if not distintos:
                 coincidencias += 1
             else:
+                detalle = "; ".join(
+                    f"{campo}: real={firma_real[campo]!r} señuelo={firma_decoy[campo]!r}"
+                    for campo in distintos
+                )
                 differences.append(
-                    f"banner distinto en {port}/{protocol}: "
-                    f"real={banner_real!r} señuelo={banner_decoy!r}"
+                    f"{' y '.join(distintos)} distinto en {port}/{protocol}: {detalle}"
                 )
         banner_score = round(100 * coincidencias / len(intersection))
 

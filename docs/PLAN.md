@@ -49,7 +49,25 @@ Fuera del MVP: Cowrie, Windows, Scapy, comparación de modelos y la API de Anthr
 - [x] S12 CLI del orquestador que une todo en modo simulación, y bucle de ajuste con el
       asistente (H4) — núcleo de orquestación hecho y probado (`run_campaign_simulation`);
       falta el `main()` de línea de comandos de verdad, aparcado hasta que también exista
-      la ejecución real de nmap (fuera de lo descrito para S12)
+      la ejecución real de nmap (fuera de lo descrito para S12). El bucle cerrado real es
+      `run_verification_loop` (H4, abajo)
+- [x] H4 Bucle cerrado de verificación con el laboratorio (2026-11-23):
+      - Verificador comparable con escaneos reales: dos escaneos del mismo host dan 100.
+        Normaliza el saludo de MySQL (salt aleatorio), compara producto, versión y
+        extrainfo, y marca el SO como distinguible si un banner delata otra distribución.
+      - El perfilador guarda la versión de los paquetes de servicio (`dpkg-query`).
+      - `adjust_decoy` (determinista, solo con datos observados del host real y sin cambiar
+        los módulos activos, de los que dependen los breadcrumbs de L4).
+      - `run_verification_loop`: arranca, escanea, puntúa y ajusta; para al aprobar, sin
+        ajuste, con config repetido o por intentos.
+      - Resultado real, H2 → H4: web-01 50 → 90 en el segundo intento (`mysql.banner`
+        pasa de `5.5.43-0ubuntu0.14.04.1` a `5.5.5-11.8.9-MariaDB-0+deb13u1`, desde el
+        paquete real); files-02 90 a la primera.
+      - Con este verificador, el "90/90" de L3 era optimista: web-01 era 50 (H2).
+      - Sin mando en OpenCanary, quedan como hallazgos: el rechazo `unauthorized` de
+        MariaDB (incluye la IP del escáner), Redis en modo protegido, la página HTTP (solo
+        hay los skins `basicLogin` y `nasLogin`) y MySQL 8, que OpenCanary no puede
+        anunciar (exige 3.x-6.x en `mysql.banner` y si no tumba el módulo en silencio)
 - [x] S13 Dashboard mínimo (FastAPI, Jinja2, HTMX): inventario, campañas, puntuaciones,
       eventos y aprobación — `CampaignStore`/`DeploymentPlanStore` (persistencia en SQLite,
       mismo patrón que `HostProfileStore`), `DeploymentPlan.differences` (motivo de la
@@ -99,7 +117,25 @@ Fuera del MVP: Cowrie, Windows, Scapy, comparación de modelos y la API de Anthr
       MySQL solo se atribuye por usuario, porque la clave llega cifrada. Fuera de alcance:
       detectar la mera lectura de un breadcrumb (requeriría auditd, es decir, modificar
       el host real))
-- [ ] L5 Ollama: modelo local y tasa de salidas válidas
+- [x] L5 Ollama: modelo local y tasa de salidas válidas (2026-11-23):
+      - `OllamaClient`: solo un Ollama local, `format: json` y `think: false`; los
+        fallos pasan a `LlmError` y de ahí a la plantilla de respaldo.
+      - Antes de usar el modelo real, dos huecos de privacidad y validez cerrados:
+        `build_profile_payload` seudonimiza también las IPs dentro de los banners (el
+        MariaDB real incluye la IP del escáner), y el hostname debe ser una etiqueta DNS
+        válida que no copie el del host real.
+      - Medición con los perfiles reales (Ollama 0.40, RTX 4070 SUPER, 25 semillas por
+        víctima). Primera pasada: 100 % de JSON válido en `qwen3:8b` y `qwen3:14b`, pero
+        `qwen3:8b` proponía `victima-01-deco` en 24 de 25 casos. Era válido como
+        hostname e inútil como señuelo, y la plantilla de respaldo (`<host>-decoy`) tenía
+        el mismo problema. Que valide el esquema no basta.
+      - Tras rechazar nombres con palabras delatoras, pedirlo en el prompt y cambiar el
+        respaldo a `<host>-bak`: 100 % de salidas válidas en ambos modelos, con nombres
+        plausibles (`db-server-01`, `servidor-datos-02`, `servidor-app-03`…).
+        Latencias de 0,25-0,3 s (8b) y 0,4-0,5 s (14b).
+      - `qwen3:14b` da nombres algo más variados; `qwen3:8b` a veces no encaja con los
+        servicios (`db-server-02` para un servidor FTP/Redis).
+      - Reproducible con `lab/l5_tasa_validas.py`
 - [ ] L6 Docker Compose de autodespliegue y pruebas ofensivas desde Kali (H7)
 
 ## Criterios de MVP terminado
