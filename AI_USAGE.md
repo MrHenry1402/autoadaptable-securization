@@ -134,3 +134,38 @@ los commits con código generado llevan el trailer `AI-Assisted: Claude Code`.
 - **Qué se generó:** `CampaignStore` en `src/securization/generador.py` y `DeploymentPlanStore` + el campo `differences` en `DeploymentPlan` en `src/securization/desplegador.py` (persistencia en SQLite, mismo patrón que `HostProfileStore`); `src/securization/dashboard.py` (`create_app`, rutas `/`, `/hosts`, `/hosts/{id}`, `/campaigns`, `/campaigns/{id}`, `POST /campaigns/{id}/approve`, `/events`) y las plantillas Jinja2 en `src/securization/templates/`; tests/test_generador_campanas.py (CampaignStore), tests/test_desplegador.py (DeploymentPlanStore y `differences`) y tests/test_dashboard.py (rutas con `TestClient`).
 - **Qué se modificó a mano:** ninguno; ruff, mypy --strict, bandit y pytest --cov (100% en dashboard.py, generador.py y desplegador.py) en verde; además probado de verdad arrancando `uvicorn` y navegando las rutas en el navegador. Se actualizó `opentelemetry-api` (dependencia transitiva de fastapi) tras un aviso de pip-audit (CVE-2026-126360), sin tocar código propio. La pestaña `/events` muestra un aviso en vez de datos de ejemplo porque todavía no hay una fuente real de eventos conectada (depende de L3).
 - **Commit(s):** ver el PR de la rama feature/s13-dashboard.
+
+### 2026-11-19 - L1: transporte SSH real (AsyncSshTransport, asyncssh)
+- **Herramienta:** Claude Code (Claude Sonnet 5)
+- **Resumen del prompt:** implementar la interfaz `SshTransport` sobre asyncssh (sesión L1 del PLAN) y usarla para perfilar un host real del laboratorio; tests primero con `asyncssh.connect` sustituido por un doble, sin red.
+- **Qué se generó:** tests/test_ssh_transport.py y `AsyncSshTransport` en src/securization/perfilador.py (no verifica `known_hosts`, justificado en el docstring: las VMs del laboratorio se recrean con clave de host distinta cada vez).
+- **Qué se modificó a mano:** ninguno; ruff, mypy --strict, bandit y pytest --cov (100% en perfilador.py) en verde. Validado además contra un host real del laboratorio (victima-01, 10.0.0.10): `AsyncSshTransport` trajo el `/etc/os-release` real por SSH, con autorización explícita del usuario para que el propio agente hiciera el login SSH en esta sesión. `victima-02` seguía sin estar operativa en el laboratorio a fecha de esta entrada, así que L1 queda validado solo contra `victima-01`.
+- **Commit(s):** ver el PR de la rama feature/l1-asyncssh-transport.
+
+### 2026-11-22 - L2: ejecución real de nmap (`ProcessRunner`, `AsyncNmapRunner`, `scan_host`)
+- **Herramienta:** Claude Code (Claude Sonnet 5)
+- **Resumen del prompt:** continuar con la parte de L2 que no depende de tener el laboratorio encendido delante (igual que L1 con `AsyncSshTransport`): una interfaz `ProcessRunner` (mismo contrato que `SshTransport`) con una implementación real `AsyncNmapRunner` sobre `asyncio.create_subprocess_exec` (nunca shell), y `scan_host` para construir el comando con `build_scan_command`, ejecutarlo y devolver la `Fingerprint` de la dirección pedida. Tests primero, con un runner falso y las fixtures XML ya existentes.
+- **Qué se generó:** en `src/securization/escaneo.py`, `NmapScanError`, `ProcessRunner`, `AsyncNmapRunner` y `scan_host`; tests nuevos en `tests/test_escaneo.py` (runner falso, proceso fallido, host no encontrado en la salida, saneado del stderr del error).
+- **Qué se modificó a mano:** ninguno; ruff, mypy --strict, bandit y pytest --cov (98% total, el módulo nuevo cubierto al 100%, los huecos restantes de escaneo.py son de código anterior sin tocar) en verde antes de abrir el PR. Sin validar todavía contra un host o un señuelo reales en VirtualBox: eso queda para cuando el laboratorio esté operativo.
+- **Commit(s):** ver el PR de la rama feature/l2-nmap-real.
+
+### 2026-11-22 - L4 (plantado): `SftpTransport`, `AsyncSftpTransport`, `plant_breadcrumbs`
+- **Herramienta:** Claude Code (Claude Sonnet 5)
+- **Resumen del prompt:** seguir con la parte de L4 que no depende del laboratorio encendido: plantado real de breadcrumbs por SFTP sobre el `DeploymentPlan` de S9, siguiendo el mismo patrón de interfaz + implementación falsa/real que L1 y L2. Tests primero.
+- **Qué se generó:** en `src/securization/desplegador.py`, `SftpTransport`, `AsyncSftpTransport` (asyncssh, modo de apertura `x` = creación exclusiva SFTP, para no fiarse solo de la comprobación de colisiones hecha al construir el plan), `DeploymentNotReadyError`, `BreadcrumbAlreadyExistsError` y `plant_breadcrumbs` (exige `ready_to_deploy`); tests/test_sftp_transport.py (dobles de asyncssh, igual que test_ssh_transport.py de L1) y los tests de `plant_breadcrumbs` añadidos a tests/test_desplegador.py.
+- **Qué se modificó a mano:** ninguno; ruff, mypy --strict, bandit y pytest --cov (100% en desplegador.py, 98% total) en verde antes de abrir el PR. Las semánticas exactas de `asyncssh.SFTPClient.open`/`SFTPError` se comprobaron por introspección contra la versión instalada (2.24.1) en vez de asumirlas de memoria. Quedan pendientes las alertas de extremo a extremo (necesitan OpenCanary real, L3) y la validación contra un host real en VirtualBox.
+- **Commit(s):** ver el PR de la rama feature/l4-sftp-planting.
+
+### 2026-11-23 - Integración L1 + L2 + L4 y validación real de L1
+- **Herramienta:** Claude Code (Claude Opus 5.5)
+- **Resumen del prompt:** juntar en una sola rama sobre S13 el código de laboratorio (L1, L2, L4), que estaba repartido en ramas que no se contenían entre sí, y dejar constancia de la validación real de L1 contra victima-01 y victima-02.
+- **Qué se generó:** rama feature/integracion-lab (merges de L1, L2 y L4 con los conflictos de AI_USAGE.md resueltos conservando todas las entradas), L1 marcado como hecho en docs/PLAN.md y `ruff format` aplicado a cinco ficheros que venían sin formatear de S13, L2 y L4 (solo cambios de formato).
+- **Qué se modificó a mano:** nada; ruff, ruff format, mypy, bandit, pip-audit y pytest (380 tests, 98% de cobertura) en verde.
+- **Commit(s):** ver el PR de la rama feature/integracion-lab.
+
+### 2026-11-23 - L2: validación contra el laboratorio real
+- **Herramienta:** Claude Code (Claude Opus 5.5)
+- **Resumen del prompt:** instalar Nmap y Npcap en la torre y validar `scan_host`/`AsyncNmapRunner` contra las víctimas reales.
+- **Qué se generó:** instalación de Nmap 7.993 (instalador oficial, firma Authenticode y SHA256 verificados contra nmap.org; Npcap instalado por el usuario desde el asistente) y la anotación de L2 en docs/PLAN.md. Hallazgo: sin `-p`, nmap no ve Redis (6379) en victima-02 aunque el perfilador por SSH sí lo detecta.
+- **Qué se modificó a mano:** nada en el código; el usuario aceptó el UAC y completó el asistente de Npcap.
+- **Commit(s):** ver el PR de la rama feature/integracion-lab.

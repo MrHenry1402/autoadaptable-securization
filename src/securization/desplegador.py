@@ -1,20 +1,27 @@
 """Plantado de breadcrumbs por SFTP y arranque de deception hosts en contenedores.
 
-La sesión S9 cubre solo la parte sin E/S: construir un `DeploymentPlan` a partir de una
-`Campaign` ya generada (S6) y de su `PlausibilityReport` (S7), en modo simulación. El
-plantado real por SFTP y el arranque de contenedores (L4) quedan para cuando haya
-laboratorio; este módulo todavía no toca ningún host real.
+La sesión S9 cubre la parte sin E/S: construir un `DeploymentPlan` a partir de una
+`Campaign` ya generada (S6) y de su `PlausibilityReport` (S7), en modo simulación.
 
-Nunca se sobrescribe un fichero existente: `build_deployment_plan` comprueba colisiones
-de ruta (contra el perfil real del host o contra lo ya plantado por una campaña anterior)
-antes de devolver el plan. Ningún señuelo se despliega sin superar el umbral de
-plausibilidad (S7) ni sin aprobación manual explícita del operador: `approve_plan` es la
-única forma de marcar un plan como aprobado, y solo lo permite si la puntuación superó el
-umbral.
+El plantado real por SFTP (L4, parte que no depende del laboratorio encendido) va detrás
+de la interfaz `SftpTransport`, mismo patrón que `SshTransport` en `perfilador.py` y
+`ProcessRunner` en `escaneo.py`: una implementación falsa en los tests y la real
+(`AsyncSftpTransport`, sobre asyncssh) para cuando haya laboratorio. `plant_breadcrumbs`
+nunca sobrescribe un fichero existente: además de la comprobación de colisiones ya hecha
+al construir el plan (`build_deployment_plan`), `AsyncSftpTransport` abre cada fichero en
+modo `x` (creación exclusiva SFTP), que falla en el propio servidor si la ruta ya existe,
+en vez de fiarse solo de la comprobación hecha en el momento de construir el plan. El
+arranque de contenedores (L3) todavía no está aquí.
+
+Ningún señuelo se despliega sin superar el umbral de plausibilidad (S7) ni sin aprobación
+manual explícita del operador: `approve_plan` es la única forma de marcar un plan como
+aprobado, y `plant_breadcrumbs` exige además `ready_to_deploy` antes de tocar nada real.
 """
 
 from collections.abc import Iterable
+from typing import Protocol, runtime_checkable
 
+import asyncssh
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import Engine
 from sqlmodel import Field as SqlField
@@ -30,6 +37,14 @@ class PlausibilityThresholdError(Exception):
 
 class DeploymentPlanNotFoundError(Exception):
     """No hay un plan de despliegue guardado con ese `campaign_id`."""
+
+
+class DeploymentNotReadyError(Exception):
+    """El plan no está listo para desplegar (`ready_to_deploy` es falso): no se toca nada real."""
+
+
+class BreadcrumbAlreadyExistsError(Exception):
+    """Ya existe un fichero en esa ruta del host real: nunca se sobrescribe."""
 
 
 class DeploymentAction(BaseModel):
@@ -95,6 +110,68 @@ def approve_plan(plan: DeploymentPlan) -> DeploymentPlan:
             f"umbral {plan.plausibility_threshold}, no se puede aprobar"
         )
     return plan.model_copy(update={"approved": True})
+
+
+@runtime_checkable
+class SftpTransport(Protocol):
+    """Planta un fichero en el host real; la implementación real llega con el laboratorio."""
+
+    async def write_file(self, path: str, content: str, mode: int) -> None:
+        """Crea el fichero en `path` con `content` y los permisos `mode`.
+
+        Debe fallar (no sobrescribir en silencio) si ya existe un fichero en esa ruta.
+        """
+        ...
+
+
+class AsyncSftpTransport:
+    """Implementación real de `SftpTransport` sobre asyncssh (L4).
+
+    Igual que `AsyncSshTransport` (L1), no se fía de ningún `known_hosts`: las VMs del
+    laboratorio se recrean con claves de host distintas en cada reinstalación.
+    """
+
+    def __init__(self, host: str, port: int, username: str, password: str) -> None:
+        self._host = host
+        self._port = port
+        self._username = username
+        self._password = password
+
+    async def write_file(self, path: str, content: str, mode: int) -> None:
+        async with (
+            asyncssh.connect(
+                self._host,
+                port=self._port,
+                username=self._username,
+                password=self._password,
+                known_hosts=None,
+            ) as conn,
+            conn.start_sftp_client() as sftp,
+        ):
+            try:
+                async with sftp.open(path, "x") as fichero:
+                    await fichero.write(content)
+            except asyncssh.SFTPError as error:
+                if error.code == asyncssh.FX_FILE_ALREADY_EXISTS:
+                    raise BreadcrumbAlreadyExistsError(path) from error
+                raise
+            await sftp.chmod(path, mode)
+
+
+async def plant_breadcrumbs(plan: DeploymentPlan, transport: SftpTransport) -> None:
+    """Planta de verdad los breadcrumbs del plan por SFTP.
+
+    Exige `ready_to_deploy` (aprobado y por encima del umbral de plausibilidad): nunca se
+    despliega un plan a medio aprobar. Si un breadcrumb falla (por ejemplo porque ya existe
+    esa ruta), se interrumpe de inmediato: los breadcrumbs anteriores de este plan ya se
+    quedan plantados, no hay una forma de "deshacer" un SFTP a medio terminar.
+    """
+    if not plan.ready_to_deploy:
+        raise DeploymentNotReadyError(
+            f"{plan.campaign_id}: el plan no está listo para desplegar (ready_to_deploy=False)"
+        )
+    for accion in plan.actions:
+        await transport.write_file(accion.path, accion.content, accion.mode)
 
 
 class _DeploymentPlanRecord(SQLModel, table=True):
