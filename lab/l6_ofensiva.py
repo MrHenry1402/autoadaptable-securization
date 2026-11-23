@@ -1,8 +1,7 @@
 """L6/H7: pruebas ofensivas desde Kali contra víctimas y señuelos (H2 frente a H4).
 
-EN CURSO (2026-11-23): sin validar todavía. La primera ejecución se paró a mano durante el
-escaneo H2: `nmap -sV -O -p-` de 4 hosts llevaba más de 15 min con Kali a 1 vCPU. Antes de
-repetirla, valorar `--top-ports 1000` más los puertos del perfil, o subir Kali a 2 vCPU.
+Validado el 2026-11-23 (unos 7 min). El barrido de puertos es el de un atacante realista
+(1-1024 y servicios habituales): con `-p-` y Kali a 1 vCPU pasaba de 15 min.
 
 Uso: python lab/l6_ofensiva.py lab   (desde la raíz; necesita kali-lab en
 lab-credentials.local.txt y los señuelos de lab/e2e_l3.py)
@@ -21,8 +20,6 @@ import json
 import shlex
 import sys
 import time
-from datetime import datetime
-from ipaddress import IPv4Address
 from pathlib import Path
 
 sys.path.insert(0, sys.argv[1] if len(sys.argv) > 1 else "lab")  # _credenciales.py
@@ -32,17 +29,20 @@ from sqlmodel import create_engine
 
 from securization.desplegador import AsyncSftpTransport, start_decoy
 from securization.escaneo import parse_nmap_xml
-from securization.eventos import CampaignIndex, parse_opencanary_log
+from securization.eventos import collect_opencanary_events, fetch_decoy_log
 from securization.generador import CampaignStore, build_opencanary_config
 from securization.inventario import CredentialVault, Inventory
 from securization.modelos import Fingerprint
-from securization.parsing import ParseError
 from securization.perfilador import AsyncSshTransport, HostProfileStore
 from securization.verificador import verify_decoy
 
 ROOT = Path.cwd()
 OUT = Path(__file__).parent / "l6_resultado"
 PARES = {"victima-01": "10.0.0.10", "victima-02": "10.0.0.11"}
+# Barrido realista de un atacante: puertos bajos y servicios habituales (con -p- y Kali a
+# 1 vCPU el escaneo de 4 hosts pasaba de 15 min).
+KALI = "10.0.0.20"
+PUERTOS_ATACANTE = "1-1024,3306,5432,6379,8080,8443,27017"
 
 
 class Kali:
@@ -73,7 +73,8 @@ async def escanear(kali: Kali, ips: list[str], nombre: str) -> dict[str, Fingerp
         "nmap",
         "-sV",
         "-O",
-        "-p-",
+        "-p",
+        PUERTOS_ATACANTE,
         "-T4",
         "--script",
         "banner,http-server-header",
@@ -128,7 +129,6 @@ async def main() -> None:
             print(f"  {host_id}: {informe.score} {informe.differences}", flush=True)
 
     # --- 2. Ataques típicos contra los señuelos H4 y alertas -------------------------
-    inicio = datetime.now()
     web, files = (str(camps[h].decoy.address) for h in PARES)
     real_web = PARES["victima-01"]
     whatweb = {
@@ -151,25 +151,18 @@ async def main() -> None:
     redis = await kali.run(["redis-cli", "-h", files, "AUTH", "admin"])
     await asyncio.sleep(3)
 
-    por_nodo = {c.decoy.node_id: c for c in camps.values()}
-    indice = CampaignIndex(list(por_nodo.values()))
+    # Sin filtro de hora: cada `start_decoy` recrea el contenedor y su log empieza de cero, así
+    # que el log del señuelo H4 solo tiene el escaneo H4 y estos ataques. (Comparar horas del
+    # log con la de la torre falla si el reloj de deception-central se desfasa.)
+    campanas = list(camps.values())
     alertas: dict[str, dict[str, int]] = {}
-    for nodo in por_nodo:
-        log = await ssh_dc.run(
-            ["docker", "exec", f"decoy-{nodo}", "cat", "/var/tmp/opencanary.log"]  # noqa: S108 - ruta del contenedor
-        )
-        for linea in log.splitlines():
-            try:
-                ev = parse_opencanary_log(linea)
-            except ParseError:
+    for campana in campanas:
+        log = await fetch_decoy_log(campana.decoy.node_id, ssh_dc)
+        for ev in collect_opencanary_events(log, campanas):
+            if ev.src_host != KALI:
                 continue
-            if ev.src_host != IPv4Address("10.0.0.20") or ev.timestamp < inicio.replace(
-                microsecond=0
-            ):
-                continue
-            camp = indice.correlate_opencanary_event(ev).campaign_id
-            alertas.setdefault(camp, {}).setdefault(str(ev.logtype), 0)
-            alertas[camp][str(ev.logtype)] += 1
+            alertas.setdefault(ev.campaign_id, {}).setdefault(str(ev.logtype), 0)
+            alertas[ev.campaign_id][str(ev.logtype)] += 1
     resultado["ataques"] = {
         "whatweb": whatweb,
         "hydra": hydra,
