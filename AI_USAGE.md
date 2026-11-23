@@ -92,3 +92,10 @@ los commits con código generado llevan el trailer `AI-Assisted: Claude Code`.
 - **Qué se generó:** lab/provision_services.py (victima-01: nginx + MariaDB; victima-02: vsftpd + Redis; idempotente, comandos como listas de argumentos) y la sección de servicios en docs/lab-design.md. victima-01 pasó a arrancar sin entorno gráfico (tenía GNOME de una instalación anterior al arreglo del preseed).
 - **Qué se modificó a mano:** nada; verificado contra el laboratorio real: puertos accesibles desde la torre, servicios activos tras reiniciar las VMs y perfiles reales actualizados con los nuevos puertos.
 - **Commit(s):** ver el PR de la rama chore/h0-laboratorio-virtualbox.
+
+### 2026-11-23 - L3 (laboratorio): deception-central lista para señuelos
+- **Herramienta:** Claude Code (Claude Opus 5.5)
+- **Resumen del prompt:** preparar deception-central para alojar señuelos OpenCanary con macvlan y comprobarlo con un señuelo levantado a mano antes de escribir el código del desplegador.
+- **Qué se generó:** lab/provision_deception.py (Docker, promiscuo persistente, red macvlan, imagen OpenCanary fijada por digest) y la sección de deception-central en docs/lab-design.md. Diagnóstico de por qué el señuelo no respondía: además de `allow-all` en VirtualBox hace falta el modo promiscuo dentro del invitado.
+- **Qué se modificó a mano:** nada; verificado con un señuelo manual de victima-02 alcanzable desde la torre, reinicio de la VM incluido, y con alertas reales de OpenCanary.
+- **Commit(s):** ver el PR de la rama chore/h0-laboratorio-virtualbox.

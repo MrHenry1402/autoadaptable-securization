@@ -41,6 +41,33 @@ los de un servidor real y son los que verá `nmap -sV`.
 Arranca en `multi-user.target` con `gdm3` y `cups` desactivados (371 MB de RAM en uso), así
 que no expone nada más; para dejarla limpia, reinstalarla con `lab/provision_vm.ps1`.
 
+### deception-central: señuelos en contenedores (L3)
+
+Preparado con `lab/provision_deception.py` (idempotente): Docker, `lab` en el grupo
+`docker`, la red macvlan `labnet-decoys` sobre `enp0s8` y la imagen oficial de OpenCanary
+fijada por digest (`thinkst/opencanary@sha256:479c2cf4…`, OpenCanary 0.9.10, 1,22 GB).
+
+Para que los contenedores macvlan sean alcanzables hacen falta **dos** modos promiscuos:
+
+1. En VirtualBox, el NIC2 con `--nicpromisc2 allow-all`.
+2. Dentro del invitado, `enp0s8` en promiscuo (`up ip link set enp0s8 promisc on` en
+   `/etc/network/interfaces`). Sin esto, la e1000 descarta el unicast a la MAC del
+   contenedor: el ARP resuelve (es broadcast), pero ni ICMP ni TCP llegan.
+
+Los señuelos se escanean desde la torre, nunca desde deception-central: un host Docker no
+alcanza a sus propios contenedores macvlan. Cada contenedor lleva una MAC con el OUI de
+VirtualBox (`08:00:27`), no el `02:42` de Docker, para no delatarse en la misma L2.
+
+deception-central también se instaló antes del arreglo del preseed. Arranca en
+`multi-user.target` y se le quitó el escritorio (`task-desktop`, `gdm3`, `gnome-shell`,
+`cups`…) para liberar disco: el sistema de 7,4 GB tiene 1,8 GB libres con la imagen de
+OpenCanary descargada. NetworkManager se conserva porque gestiona `enp0s3` (NAT).
+
+Prueba manual (2026-11-23): un señuelo de victima-02 en 10.0.0.50 (ftp, ssh, redis)
+responde desde la torre con el mismo banner FTP y SSH y el mismo SO (Linux, 94 %) que el
+host real. Las alertas reales de OpenCanary (SSH 4000/4001/4002, FTP 2000, Redis 17001)
+se interpretan sin cambios con `eventos.parse_opencanary_log`.
+
 Cada VM Debian tiene dos adaptadores: `nic1` NAT (solo para `apt` durante la instalación y
 actualizaciones puntuales) y `nic2` en `labnet` con la IP de la tabla. `kali-lab` sigue el
 mismo patrón.
@@ -76,6 +103,7 @@ de `lab-credentials.local.txt`; ninguno imprime contraseñas.
 | `debian_preseed_minimal.cfg` | Plantilla de VirtualBox con `tasksel/first` fijado (sin él, a veces instala GNOME) |
 | `set_static_ip.py <host_id>` | Fija la IP estática de labnet en la VM |
 | `provision_services.py` | Instala y configura los servicios de cada víctima |
+| `provision_deception.py` | Docker, promiscuo persistente, red macvlan e imagen OpenCanary en deception-central |
 | `retry_boot_until_ssh.ps1` | Reinicia una VM hasta que su SSH responde de forma estable |
 | `check_lab.py` | SSH, IPs y ping cruzado entre las tres VMs |
 | `register_lab.py` | Alta en `inventario.db` (clave en `securization.key`) y verificación SSH |
