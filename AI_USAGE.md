@@ -232,3 +232,10 @@ los commits con código generado llevan el trailer `AI-Assisted: Claude Code`.
 - **Qué se generó:** lab/provision_deception.py (Docker, promiscuo persistente, red macvlan, imagen OpenCanary fijada por digest) y la sección de deception-central en docs/lab-design.md. Diagnóstico de por qué el señuelo no respondía: además de `allow-all` en VirtualBox hace falta el modo promiscuo dentro del invitado.
 - **Qué se modificó a mano:** nada; verificado con un señuelo manual de victima-02 alcanzable desde la torre, reinicio de la VM incluido, y con alertas reales de OpenCanary.
 - **Commit(s):** ver el PR de la rama chore/h0-laboratorio-virtualbox.
+
+### 2026-11-23 - Ensayo de la demo: errores de la CLI
+- **Herramienta:** Claude Code (Claude Opus 5.5)
+- **Resumen del prompt:** ensayar en el laboratorio la demo completa con la CLI antes de grabar el vídeo.
+- **Qué se generó:** `campaign` convierte una colisión de ruta (un breadcrumb que ya existe en el host real) en un mensaje claro en vez de una traza de Python, sin arrancar ningún señuelo; `hosts list` muestra `usuario@ip:puerto` (antes `lab@:22`). Tests de ambos casos.
+- **Qué se modificó a mano:** nada; ruff, mypy, bandit y pytest (602 tests, 99 %) en verde. Detectado en el ensayo real contra victima-01, que conservaba los breadcrumbs de L4.
+- **Commit(s):** ver el PR de la rama fix/cli-demo-errors.

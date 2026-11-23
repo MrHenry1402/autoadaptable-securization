@@ -41,14 +41,16 @@ from securization.desplegador import (
 from securization.escaneo import AsyncNmapRunner, enrich_profile, profile_tcp_ports, scan_host
 from securization.eventos import EventStore, collect_opencanary_events, fetch_decoy_log
 from securization.generador import (
+    Campaign,
     CampaignStore,
+    CollisionError,
     DecoyConfig,
     build_campaign,
     propose_decoy_hostname,
 )
 from securization.inventario import CredentialVault, Inventory
 from securization.llm import OllamaClient
-from securization.modelos import Fingerprint
+from securization.modelos import Fingerprint, HostProfile
 from securization.orquestador import VerificationResultStore, run_verification_loop
 from securization.perfilador import AsyncSshTransport, HostProfileStore, orchestrate_profiling
 
@@ -163,7 +165,8 @@ async def _hosts(args: argparse.Namespace, rt: Runtime) -> None:
         _print(f"Alta: {args.host_id} ({args.address}), credencial cifrada en el inventario")
         return
     for h in rt.inventory.list_hosts():
-        _print(f"{h.host_id:<20} {h.address:<15} {h.ssh_user}@:{h.ssh_port} {h.os_family}")
+        acceso = f"{h.ssh_user}@{h.address}:{h.ssh_port}"
+        _print(f"{h.host_id:<20} {h.address:<15} {acceso:<28} {h.os_family}")
 
 
 async def _profile(args: argparse.Namespace, rt: Runtime) -> None:  # pragma: no cover
@@ -192,19 +195,35 @@ async def _name(args: argparse.Namespace, rt: Runtime) -> None:  # pragma: no co
     _print(f"Hostname propuesto: {identidad.hostname} (calidad: {calidad})")
 
 
-async def _campaign(args: argparse.Namespace, rt: Runtime) -> None:  # pragma: no cover
+async def _campaign(args: argparse.Namespace, rt: Runtime) -> None:
     perfil = HostProfileStore(rt.engine).load(args.host_id)
     ssh_host = rt.ssh(args.host_id)
     home = (await ssh_host.run(_HOME_CMD)).strip()
     conocidas = [f"{home}/{n}" for n in (await ssh_host.run(("ls", "-A", home))).split()]
-    campana = build_campaign(
-        perfil,
-        campaign_id=f"campana-{args.host_id}",
-        decoy_node_id=args.decoy_node,
-        decoy_address=args.decoy_ip,
-        home_dir=home,
-        known_paths=conocidas,
-    )
+    try:
+        campana = build_campaign(
+            perfil,
+            campaign_id=f"campana-{args.host_id}",
+            decoy_node_id=args.decoy_node,
+            decoy_address=args.decoy_ip,
+            home_dir=home,
+            known_paths=conocidas,
+        )
+    except CollisionError as error:
+        raise SystemExit(
+            f"{args.host_id}: {error}; el fichero ya existe en el host y la herramienta "
+            "nunca sobrescribe ficheros reales"
+        ) from None
+    await _verify_and_plan(args, rt, perfil, campana, conocidas)  # pragma: no cover
+
+
+async def _verify_and_plan(  # pragma: no cover - E/S real: contenedores y nmap
+    args: argparse.Namespace,
+    rt: Runtime,
+    perfil: HostProfile,
+    campana: Campaign,
+    conocidas: list[str],
+) -> None:
     puertos = profile_tcp_ports(perfil)
     real = await scan_host(perfil.address, rt.runner, ports=puertos)
     ssh_dc, sftp_dc = rt.ssh(rt.deception_host), rt.sftp(rt.deception_host)
