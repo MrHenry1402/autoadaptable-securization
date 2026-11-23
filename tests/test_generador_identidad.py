@@ -43,14 +43,14 @@ async def test_cae_en_la_plantilla_de_respaldo_si_el_llm_falla() -> None:
 
     cliente = FakeLlmClient(error=LlmError("sin respuesta"))
     identidad, calidad = await propose_decoy_hostname(PERFIL, cliente)
-    assert identidad == DecoyIdentity(hostname="victima-01-decoy")
+    assert identidad == DecoyIdentity(hostname="victima-01-bak")
     assert calidad is GenerationQuality.FALLBACK
 
 
 async def test_cae_en_la_plantilla_de_respaldo_si_la_salida_no_valida() -> None:
     cliente = FakeLlmClient(respuesta="no es json")
     identidad, calidad = await propose_decoy_hostname(PERFIL, cliente)
-    assert identidad == DecoyIdentity(hostname="victima-01-decoy")
+    assert identidad == DecoyIdentity(hostname="victima-01-bak")
     assert calidad is GenerationQuality.FALLBACK
 
 
@@ -100,7 +100,7 @@ import pytest  # noqa: E402
 async def test_hostname_no_valido_cae_en_el_respaldo(propuesto: str) -> None:
     cliente = FakeLlmClient(respuesta=json.dumps({"hostname": propuesto}))
     identidad, calidad = await propose_decoy_hostname(PERFIL, cliente)
-    assert identidad == DecoyIdentity(hostname="victima-01-decoy")
+    assert identidad == DecoyIdentity(hostname="victima-01-bak")
     assert calidad is GenerationQuality.FALLBACK
 
 
@@ -109,7 +109,7 @@ async def test_hostname_que_copia_el_del_host_real_cae_en_el_respaldo(propuesto:
     cliente = FakeLlmClient(respuesta=json.dumps({"hostname": propuesto}))
     identidad, calidad = await propose_decoy_hostname(PERFIL, cliente)
     assert calidad is GenerationQuality.FALLBACK
-    assert identidad.hostname == "victima-01-decoy"
+    assert identidad.hostname == "victima-01-bak"
 
 
 async def test_hostname_valido_de_un_solo_caracter_y_maximo_largo() -> None:
@@ -117,3 +117,40 @@ async def test_hostname_valido_de_un_solo_caracter_y_maximo_largo() -> None:
         cliente = FakeLlmClient(respuesta=json.dumps({"hostname": propuesto}))
         identidad, calidad = await propose_decoy_hostname(PERFIL, cliente)
         assert (identidad.hostname, calidad) == (propuesto, GenerationQuality.AI)
+
+
+# --- Un nombre que delata el engaño no es una salida válida (L5) ----------------------
+# Medido con qwen3:8b: 24 de 25 propuestas eran "victima-01-deco". Validan como hostname,
+# pero un señuelo que se llama a sí mismo "decoy" no engaña a nadie.
+
+
+@pytest.mark.parametrize(
+    "propuesto",
+    ["victima-01-deco", "decoy-web", "honeypot01", "CANARY-02", "srv-trap", "fake-db", "cebo-1"],
+)
+async def test_hostname_que_delata_el_engano_cae_en_el_respaldo(propuesto: str) -> None:
+    cliente = FakeLlmClient(respuesta=json.dumps({"hostname": propuesto}))
+    identidad, calidad = await propose_decoy_hostname(PERFIL, cliente)
+    assert calidad is GenerationQuality.FALLBACK
+    assert identidad.hostname == "victima-01-bak"
+
+
+def test_la_plantilla_de_respaldo_no_delata_el_engano() -> None:
+    from securization.generador import _decoy_hostname_fallback
+
+    nombre = _decoy_hostname_fallback(PERFIL).hostname.lower()
+    assert not any(p in nombre for p in ("decoy", "deco", "honey", "canary", "trap", "fake"))
+
+
+def test_la_plantilla_de_respaldo_respeta_el_largo_maximo() -> None:
+    from securization.generador import _decoy_hostname_fallback
+
+    perfil = PERFIL.model_copy(update={"host_id": "h" * 63})
+    assert len(_decoy_hostname_fallback(perfil).hostname) <= 63
+
+
+async def test_el_prompt_pide_no_revelar_que_es_un_senuelo() -> None:
+    cliente = FakeLlmClient(respuesta=json.dumps({"hostname": "x"}))
+    await propose_decoy_hostname(PERFIL, cliente)
+    (prompt,) = cliente.prompts
+    assert "no debe revelar" in prompt

@@ -558,9 +558,36 @@ class DecoyIdentity(BaseModel):
     hostname: str = Field(pattern=r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$")
 
 
+# Palabras que delatan el engaño en un hostname (medido en L5: qwen3:8b proponía
+# "victima-01-deco" en 24 de 25 intentos).
+_TELLTALE_WORDS = (
+    "decoy",
+    "deco",
+    "honey",
+    "canary",
+    "trap",
+    "fake",
+    "bait",
+    "senuelo",
+    "señuelo",
+    "cebo",
+    "trampa",
+)
+_FALLBACK_SUFFIX = "-bak"
+
+
+def _reveals_deception(hostname: str) -> bool:
+    nombre = hostname.lower()
+    return any(palabra in nombre for palabra in _TELLTALE_WORDS)
+
+
 def _decoy_hostname_fallback(profile: HostProfile) -> DecoyIdentity:
-    """Plantilla de respaldo determinista: `<host_id>-decoy`, sin IA."""
-    return DecoyIdentity(hostname=f"{profile.host_id}-decoy")
+    """Plantilla de respaldo determinista, sin IA: `<host_id>-bak` (un servidor de backup).
+
+    No usa "decoy" ni nada parecido: el nombre del señuelo no puede delatar el engaño.
+    """
+    base = profile.host_id[: 63 - len(_FALLBACK_SUFFIX)].rstrip("-")
+    return DecoyIdentity(hostname=f"{base}{_FALLBACK_SUFFIX}")
 
 
 async def propose_decoy_hostname(
@@ -580,7 +607,9 @@ async def propose_decoy_hostname(
     os_name = sanitize_text(profile.os_name)
     prompt = (
         "Propón un hostname de servidor plausible para un señuelo (deception host) que "
-        "debe encajar con el resto de la red de este host real. Responde solo JSON con la "
+        "debe encajar con el resto de la red de este host real. El nombre no debe revelar "
+        "que es un señuelo: nada como decoy, honeypot, canary, trap o fake; tiene que "
+        "parecer un servidor más del entorno. Responde solo JSON con la "
         'forma {"hostname": "..."}.\n'
         f"host_id del host real (solo para inferir la convención de nombres, no lo copies "
         f"tal cual): {host_id}\n"
@@ -590,7 +619,10 @@ async def propose_decoy_hostname(
     identidad, calidad = await generate_with_fallback(
         client, prompt, DecoyIdentity, lambda: _decoy_hostname_fallback(profile)
     )
-    if identidad.hostname.lower() == profile.host_id.lower():
-        # Copiar el nombre del host real no sirve como señuelo: se trata como no válida.
+    if calidad is GenerationQuality.AI and (
+        identidad.hostname.lower() == profile.host_id.lower()
+        or _reveals_deception(identidad.hostname)
+    ):
+        # Copiar el nombre del host real, o uno que delata el engaño, no sirve como señuelo.
         return _decoy_hostname_fallback(profile), GenerationQuality.FALLBACK
     return identidad, calidad
