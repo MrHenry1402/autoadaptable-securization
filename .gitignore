@@ -25,6 +25,8 @@ htmlcov/
 *.db
 *.sqlite
 *.sqlite3
+*.local.txt
+lab-credentials.local.txt
 
 # Entorno / IDE
 .idea/
