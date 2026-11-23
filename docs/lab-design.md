@@ -22,6 +22,25 @@ máquina (no reutiliza el adaptador Host-Only por defecto de VirtualBox):
 | `victima-02` | 10.0.0.11 | Debian 13 (Trixie) | 2 GB | 1 | Host real a perfilar | Operativo: IP estática, SSH y ping cruzado verificados |
 | `kali-lab` | 10.0.0.20 | Kali Linux 2024.4 | 4 GB | 1 | Host atacante (H7) | VM creada con el ISO montado; instalación del SO pendiente (manual, `VBoxManage unattended` no soporta el instalador de Kali) |
 
+### Servicios de las víctimas
+
+Cada víctima tiene un papel distinto, con servicios que OpenCanary sabe emular, para que
+el señuelo no se reduzca a copiar un `sshd` y la comparación H2 vs H4 tenga sentido. Se
+instalan con `lab/provision_services.py` (idempotente).
+
+| Host | Papel | Servicios (todas las interfaces) |
+|---|---|---|
+| `victima-01` | Servidor web con base de datos | SSH 22, nginx 80 (página "Intranet"), MariaDB 3306 |
+| `victima-02` | Servidor de ficheros y caché | SSH 22, vsftpd 21, Redis 6379 (modo protegido) |
+
+MariaDB rechaza conexiones desde hosts no autorizados ("Host ... is not allowed") y Redis,
+sin contraseña y fuera de loopback, responde en modo protegido; ambos comportamientos son
+los de un servidor real y son los que verá `nmap -sV`.
+
+`victima-01` se instaló antes de corregir el preseed y tiene un escritorio GNOME completo.
+Arranca en `multi-user.target` con `gdm3` y `cups` desactivados (371 MB de RAM en uso), así
+que no expone nada más; para dejarla limpia, reinstalarla con `lab/provision_vm.ps1`.
+
 Cada VM Debian tiene dos adaptadores: `nic1` NAT (solo para `apt` durante la instalación y
 actualizaciones puntuales) y `nic2` en `labnet` con la IP de la tabla. `kali-lab` sigue el
 mismo patrón.
@@ -56,6 +75,7 @@ de `lab-credentials.local.txt`; ninguno imprime contraseñas.
 | `provision_vm.ps1` | Crea la VM, instala Debian desatendido con `debian_preseed_minimal.cfg` y añade el NIC2 de labnet |
 | `debian_preseed_minimal.cfg` | Plantilla de VirtualBox con `tasksel/first` fijado (sin él, a veces instala GNOME) |
 | `set_static_ip.py <host_id>` | Fija la IP estática de labnet en la VM |
+| `provision_services.py` | Instala y configura los servicios de cada víctima |
 | `retry_boot_until_ssh.ps1` | Reinicia una VM hasta que su SSH responde de forma estable |
 | `check_lab.py` | SSH, IPs y ping cruzado entre las tres VMs |
 | `register_lab.py` | Alta en `inventario.db` (clave en `securization.key`) y verificación SSH |

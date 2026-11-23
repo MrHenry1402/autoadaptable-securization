@@ -85,3 +85,10 @@ los commits con código generado llevan el trailer `AI-Assisted: Claude Code`.
 - **Qué se generó:** diagnóstico del cuelgue de las VMs (VirtualBox cae al backend NEM por Hyper-V; 1 vCPU, sin IO-APIC ni paravirtualización), actualización de docs/lab-design.md y la carpeta lab/ (provision_vm.ps1, debian_preseed_minimal.cfg con `tasksel/first` corregido, set_static_ip.py, retry_boot_until_ssh.ps1, check_lab.py, register_lab.py, profile_lab.py).
 - **Qué se modificó a mano:** nada; los scripts se ejecutaron contra el laboratorio real (SSH, ping cruzado, alta en inventario y perfilado de las dos víctimas con AsyncSshTransport) antes de commitear.
 - **Commit(s):** ver el PR de la rama chore/h0-laboratorio-virtualbox.
+
+### 2026-11-23 - H0: servicios reales en las víctimas
+- **Herramienta:** Claude Code (Claude Opus 5.5)
+- **Resumen del prompt:** dar contenido a las víctimas (solo tenían SSH) con servicios distintos en cada una que OpenCanary sepa emular.
+- **Qué se generó:** lab/provision_services.py (victima-01: nginx + MariaDB; victima-02: vsftpd + Redis; idempotente, comandos como listas de argumentos) y la sección de servicios en docs/lab-design.md. victima-01 pasó a arrancar sin entorno gráfico (tenía GNOME de una instalación anterior al arreglo del preseed).
+- **Qué se modificó a mano:** nada; verificado contra el laboratorio real: puertos accesibles desde la torre, servicios activos tras reiniciar las VMs y perfiles reales actualizados con los nuevos puertos.
+- **Commit(s):** ver el PR de la rama chore/h0-laboratorio-virtualbox.
