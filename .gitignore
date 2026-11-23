@@ -39,3 +39,4 @@ Thumbs.db
 
 # Resultados locales de las mediciones del laboratorio
 lab/*_resultado.json
+lab/l6_resultado/

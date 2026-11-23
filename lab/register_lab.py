@@ -46,7 +46,8 @@ async def verify(inventory: Inventory, host_id: str) -> str:
 async def main() -> None:
     root = Path.cwd()
     inventory = open_inventory(root)
-    for h in load_lab_hosts(root):
+    # kali-lab es el atacante: nunca se da de alta en el inventario de hosts gestionados.
+    for h in (h for h in load_lab_hosts(root) if h.host_id != "kali-lab"):
         try:
             inventory.add_host(
                 host_id=h.host_id, address=h.labnet_ip, ssh_user=h.user, ssh_secret=h.password
