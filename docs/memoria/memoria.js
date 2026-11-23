@@ -362,6 +362,7 @@ const limitaciones = [
   B("**El contenido HTTP no se replica.** OpenCanary solo ofrece páginas de login predefinidas; whatweb distingue el señuelo («Synology RackStation») del host real («Intranet»), algo que nmap no ve y que el verificador no mide."),
   B("**Diferencias que OpenCanary no permite corregir.** El rechazo `unauthorized` de MariaDB (que incluye la IP del escáner), el modo protegido de Redis y MySQL 8, que OpenCanary no puede anunciar."),
   B("**Sin alerta de barridos de puertos**, porque el módulo `portscan` de OpenCanary está desactivado."),
+  B("**Los escaneos del propio bucle de verificación generan alertas** en el señuelo (con origen en la máquina del orquestador); hoy se distinguen por la IP de origen, pero no se filtran de forma automática."),
   B("**El hostname del LLM no se aplica solo**: el operador lo pasa a `campaign` con `--decoy-node`."),
   B("**Seguridad de la propia herramienta pensada para el laboratorio.** El SSH usa contraseña y no verifica la clave del host (`known_hosts` desactivado porque las VMs se recrean), y el dashboard no tiene autenticación. En una red real habría que fijar las claves de host y proteger el dashboard."),
   B("**Solo Linux e IPv4**, un único host de señuelos y un umbral fijo (90). Una puntuación en el umbral no garantiza que el señuelo sea indistinguible."),
