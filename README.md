@@ -117,6 +117,17 @@ limitada al laboratorio aislado); el despliegue definitivo es siempre `deploy`, 
 plan aprobado. Los breadcrumbs nunca sobrescriben ficheros existentes: se crean en modo
 exclusivo, sin permisos de ejecución y dentro de una lista blanca de directorios.
 
+### Dashboard
+
+Pensado para alguien sin conocimientos técnicos: explica qué hace la herramienta, muestra en
+qué paso está, dibuja el mapa de la red en directo (equipos reales, trampas y quién las toca)
+y cuenta las alertas en lenguaje llano. Desde él se puede hacer todo el flujo salvo el alta de
+equipos (**Analizar**, **Crear la trampa**, **Aprobar**, **Desplegar** y **Recoger alertas**),
+cada operación con su barra de progreso. Las acciones solo se activan si el dashboard escucha
+en local; en otra dirección (por ejemplo, con Docker Compose) queda en solo lectura salvo que
+se arranque con `securization dashboard --acciones`. Los escaneos con los que la herramienta
+comprueba sus trampas se reconocen por la IP del orquestador y no se presentan como intrusos.
+
 ## Laboratorio
 
 Los scripts de `lab/` reproducen y validan el laboratorio (red `labnet` 10.0.0.0/24:

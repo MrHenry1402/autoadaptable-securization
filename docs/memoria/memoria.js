@@ -87,14 +87,21 @@ function Tabla(cabecera, filas, pesos) {
 }
 const Sep = () => new Paragraph({ spacing: { after: 120 }, children: [] });
 
-function Imagen(fichero, anchoPx, altoPx) {
+function Imagen(fichero, anchoPx, altoPx, ruta = path.join(AQUI, fichero)) {
+  const tipo = fichero.toLowerCase().endsWith(".png") ? "png" : "jpg";
   return new Paragraph({
     alignment: AlignmentType.CENTER,
     spacing: { before: 120, after: 40 },
-    children: [new ImageRun({ type: "png", data: fs.readFileSync(path.join(AQUI, fichero)),
+    children: [new ImageRun({ type: tipo, data: fs.readFileSync(ruta),
       transformation: { width: anchoPx, height: altoPx },
       altText: { title: fichero, description: fichero, name: fichero } })],
   });
+}
+
+// Captura real de docs/evidencias/capturas, escalada a `ancho` px manteniendo la proporción.
+const CAPTURAS = path.join(AQUI, "..", "evidencias", "capturas");
+function Captura(fichero, [w, h], ancho = 560) {
+  return Imagen(fichero, ancho, Math.round((h * ancho) / w), path.join(CAPTURAS, fichero));
 }
 
 // --- contenido ----------------------------------------------------------------
@@ -129,6 +136,7 @@ const resumen = [
   H1("1. Introducción"),
   P("Este documento recoge el desarrollo completo de **autoadaptable-securization**, la herramienta de deception construida en la asignatura Proyectos de Ciberseguridad, partiendo de la entrega intermedia (25 de octubre de 2026). En aquella fecha estaban terminadas 6 de las 14 sesiones de desarrollo sin laboratorio (S0-S5: inventario, perfilador y catálogo de breadcrumbs) y ninguna de las 6 sesiones con laboratorio. A fecha de esta memoria están terminados todos los hitos técnicos (H0-H7), validados en un laboratorio real de VirtualBox, y el código está integrado en la rama `main` del repositorio."),
   P("El problema de partida es conocido: un señuelo de red configurado de forma estática se distingue con un simple `nmap -sV -O`, porque sus servicios, versiones o sistema operativo no cuadran con el resto de la red. La aportación de este proyecto es un **bucle cerrado de verificación de plausibilidad**: el señuelo se genera a partir del perfil de un host real, se escanea junto a ese host, se comparan las huellas, se puntúa y se ajusta hasta superar un umbral. Nada se despliega sin superar el umbral y sin la aprobación de un operador."),
+  P("El repositorio final tiene **14.516 líneas en 90 ficheros** (11.299 sin líneas en blanco ni comentarios): 4.213 de la herramienta (`src/`), 540 de plantillas del dashboard, 6.305 de tests, 1.592 de scripts del laboratorio y el resto de documentación y configuración. Hay más líneas de tests que de código de la herramienta."),
   P("La memoria sigue el orden pedido para la entrega final: la herramienta final y sus diferencias con el planteamiento inicial (apartado 2), las pruebas y la validación (3), el uso de la IA en el desarrollo (4), el componente de IA de la herramienta (5), las limitaciones y la continuidad (6) y el manual de instalación y uso (7)."),
 ];
 
@@ -193,6 +201,27 @@ const herramienta = [
   ], [30, 32, 38]),
   Sep(),
   P("También se añadieron piezas que el plan no detallaba y que la validación en el laboratorio hizo necesarias: guardar las versiones de los paquetes de servicio en el perfil (sin ellas no se puede derivar el banner real de MariaDB), limitar el escaneo a los puertos del perfil (sin `-p` nmap no veía Redis en el 6379) y validar el config de OpenCanary antes de arrancar (un banner de MySQL fuera de `3.x-6.x` hace que OpenCanary desactive el módulo sin avisar)."),
+
+  H2("2.5. Casos de uso"),
+  P("Los casos de uso recogen quién usa la herramienta, para qué y qué obtiene. Los cuatro primeros son del lado defensor; los dos últimos describen lo que hace el atacante y cómo lo ve la herramienta. Todos se ejecutaron en el laboratorio el 27 de noviembre de 2026 (apartado 3) y su evidencia está en `docs/evidencias/`."),
+  Tabla(["Caso de uso", "Actor", "Flujo", "Resultado y evidencia"], [
+    ["CU1. Proteger un equipo de la red", "Operador (administrador)", "Alta del equipo → análisis por SSH y nmap → crear la trampa → aprobar → desplegar", "Trampa en una IP libre y 3-4 cebos en el equipo real (evidencias 04-14)"],
+    ["CU2. Comprobar que la trampa no se nota", "La herramienta (automático)", "Arranca la trampa, la escanea como un atacante, la compara con el equipo real y la corrige", "Nota de parecido por intento: web-01 50 → 90 (evidencia 07)"],
+    ["CU3. Revisar y aprobar", "Operador", "Revisa nota, diferencias e intentos en el dashboard y aprueba", "Sin aprobación el despliegue se rechaza (evidencia 09)"],
+    ["CU4. Supervisar sin conocimientos técnicos", "Responsable de la red", "Inicio del dashboard: pasos, mapa de la red en directo y alertas en lenguaje llano", "Ve qué está protegido y si alguien ha tocado una trampa (capturas 23-27)"],
+    ["CU5. Reconocimiento de la red por un intruso", "Atacante en la red interna", "nmap, barrido de puertos, whatweb y fuerza bruta contra la trampa", "Alertas con origen, servicio y hora; el barrido no alerta (evidencias 20-26)"],
+    ["CU6. Movimiento lateral con credenciales robadas", "Atacante que ya ha entrado en un equipo", "Lee un fichero cebo y usa su credencial contra la trampa", "Alerta grave atribuida al equipo comprometido y al cebo usado (evidencias 22-24, 30-32, 41)"],
+  ], [24, 16, 32, 28]),
+
+  H2("2.6. La interfaz"),
+  P("La herramienta se usa desde la CLI `securization` o desde el dashboard web. El dashboard se rediseñó para que lo pueda usar alguien con conocimientos mínimos: habla de «equipos», «trampas», «cebos» y «nota de parecido» en lugar de hosts, señuelos, breadcrumbs y plausibilidad; explica cada pantalla; y permite lanzar las operaciones (analizar, crear la trampa, desplegar y recoger alertas) con una barra de progreso que dice en cada momento qué se está haciendo. Las acciones solo están disponibles si el dashboard escucha en local, y desplegar sigue exigiendo la aprobación."),
+  Captura("23-ui-inicio.jpg", [800, 969], 520),
+  Pie("Figura 3. Inicio del dashboard con datos reales del laboratorio: qué hace la herramienta, en qué paso está, mapa de la red en directo (la herramienta, los equipos reales, las trampas y quién las toca) y últimas alertas."),
+  P("En el mapa, cada equipo real está unido a su trampa por una línea punteada (sus cebos apuntan a ella) y cada origen que ha tocado una trampa aparece a la derecha con una línea roja. Los escaneos con los que la propia herramienta comprueba sus trampas no se presentan como un intruso: el dashboard reconoce la dirección del orquestador y los dibuja como una comprobación."),
+  Captura("21-ui-progreso-analisis-45.jpg", [800, 624], 500),
+  Pie("Figura 4. Barra de progreso del análisis de victima-01 contra el laboratorio real, al 45 %: el paso actual y los ya completados."),
+  Captura("24-ui-trampa-victima-01.jpg", [800, 812], 500),
+  Pie("Figura 5. Ficha de la trampa de victima-01: nota de parecido, estado, intentos del bucle de verificación y ficheros cebo dejados."),
 ];
 
 const pruebas = [
@@ -201,8 +230,8 @@ const pruebas = [
   H2("3.1. Pruebas automáticas"),
   P("Cada tarea empezó por los tests y siguió con la implementación. La E/S real (SSH, SFTP, nmap, Docker, Ollama) se sustituye por dobles que registran exactamente qué comando o petición se habría enviado, lo que permite comprobar que los comandos son listas de argumentos fijas y que ninguno contiene texto del LLM. Los parsers se prueban con salidas reales guardadas en `tests/fixtures/` (nmap XML, `ss`, `os-release`, logs de OpenCanary)."),
   Tabla(["Control", "Herramienta", "Resultado en main"], [
-    ["Tests unitarios y de integración", "pytest + pytest-asyncio", "601 tests en 27 ficheros, 0 fallos"],
-    ["Cobertura", "pytest-cov", "99 % total; 100 % en perfilador, verificador y llm; 99 % en generador (objetivo: 80 %)"],
+    ["Tests unitarios y de integración", "pytest + pytest-asyncio", "650 tests en 30 ficheros, 0 fallos"],
+    ["Cobertura", "pytest-cov", "99 % total; 100 % en perfilador, generador, verificador, llm y operaciones (objetivo: 80 %)"],
     ["Estilo y errores estáticos", "ruff check / ruff format", "Sin hallazgos"],
     ["Tipado", "mypy --strict", "Sin errores"],
     ["Seguridad del código", "bandit", "Sin hallazgos (prohíbe `shell=True` y `os.system`)"],
@@ -210,23 +239,25 @@ const pruebas = [
     ["Integración continua", "GitHub Actions", "Las mismas comprobaciones en cada PR"],
   ], [28, 26, 46]),
   Sep(),
-  P("Salida real de la suite de tests con cobertura sobre `main` (23 de noviembre de 2026):"),
+  P("Salida real de la suite de tests con cobertura (27 de noviembre de 2026, evidencia 50):"),
   ...Codigo([
     "> pytest -q --cov",
-    "src\\securization\\cli.py               108      1     14      0    99%",
-    "src\\securization\\dashboard.py          71      0      0      0   100%",
-    "src\\securization\\desplegador.py       139      0     20      0   100%",
+    "src\\securization\\cli.py               135      1     18      1    99%",
+    "src\\securization\\dashboard.py         165      4     10      1    97%",
+    "src\\securization\\desplegador.py       141      0     20      0   100%",
     "src\\securization\\escaneo.py           170      7     60      4    95%",
     "src\\securization\\eventos.py           150      0     26      0   100%",
-    "src\\securization\\generador.py         271      0     90      1    99%",
+    "src\\securization\\generador.py         271      0     90      0   100%",
     "src\\securization\\inventario.py        104      3     14      0    97%",
     "src\\securization\\llm.py               113      0     20      0   100%",
+    "src\\securization\\operaciones.py       137      0      8      0   100%",
     "src\\securization\\orquestador.py        95      0     22      0   100%",
     "src\\securization\\perfilador.py         86      0      4      0   100%",
+    "src\\securization\\presentacion.py      110      0     32      1    99%",
     "src\\securization\\respuesta.py          26      0      6      0   100%",
     "src\\securization\\verificador.py        69      0     18      0   100%",
-    "TOTAL                                1537     14    332      6    99%",
-    "601 passed, 1 warning in 5.55s",
+    "TOTAL                                1907     18    386      8    99%",
+    "650 passed, 1 warning in 9.68s",
   ]),
   P("Entre las pruebas hay casos de seguridad explícitos: el cliente de Ollama rechaza cualquier URL que no sea local (`http://10.0.0.5:11434`, `https://api.ejemplo.com`, `http://localhost.evil.com`…); `deploy_decoy` no ejecuta nada con un plan sin aprobar o de otra campaña; un `node_id` con caracteres no válidos (`x;rm`, `--rm`) se rechaza antes de construir el comando `docker`; un config de OpenCanary con claves desconocidas falla antes de tocar el host; y el plantado por SFTP falla, sin escribir nada, si el fichero ya existe."),
 
@@ -242,7 +273,65 @@ const pruebas = [
     ["L6", "Docker Compose y pruebas ofensivas desde Kali", "Dashboard servido por `docker compose up -d`; las puntuaciones vistas desde Kali coinciden con las de la torre; ataques detectados"],
   ], [10, 34, 56]),
 
-  H2("3.3. Resultados: línea base H2 frente a señuelo ajustado H4"),
+  H2("3.3. Prueba de que el laboratorio funciona"),
+  P("Antes de cada batería de pruebas se comprueba el laboratorio con `lab/check_lab.py` y `lab/evidencias/lab_proof.py`. Salida real del 27 de noviembre de 2026 (evidencias 01-03), recortada y agrupada por máquina:"),
+  ...Codigo([
+    "$ VBoxManage list runningvms",
+    "\"kali1\" {5044770a-…}   \"victima-01\" {100a0ae8-…}   \"deception-central\" {b168724b-…}   \"victima-02\" {4637c859-…}",
+    "",
+    "$ python lab\\check_lab.py",
+    "== victima-01           enp0s8 10.0.0.10/24   ping 10.0.0.11: ok  ping 10.0.0.5: ok  ping 10.0.0.20: ok",
+    "== victima-02           enp0s8 10.0.0.11/24   ping 10.0.0.10: ok  ping 10.0.0.5: ok  ping 10.0.0.20: ok",
+    "== deception-central    enp0s8 10.0.0.5/24    ping 10.0.0.10: ok  ping 10.0.0.11: ok ping 10.0.0.20: ok",
+    "== kali-lab             eth2   10.0.0.20/24   ping 10.0.0.10: ok  ping 10.0.0.11: ok ping 10.0.0.5: ok",
+    "",
+    "== victima-01 (10.0.0.10)   PRETTY_NAME=\"Debian GNU/Linux 13 (trixie)\"",
+    "$ systemctl is-active ssh nginx mariadb        → active active active",
+    "$ ss -tlnH                                     → 0.0.0.0:22  0.0.0.0:80  0.0.0.0:3306",
+    "== victima-02 (10.0.0.11)",
+    "$ systemctl is-active ssh vsftpd redis-server  → active active active",
+    "$ ss -tlnH                                     → 0.0.0.0:22  *:21  0.0.0.0:6379",
+    "== deception-central (10.0.0.5)   Docker version 26.1.5+dfsg1",
+    "red labnet-decoys: driver macvlan, padre enp0s8, subred 10.0.0.0/24",
+    "enp0s8  UP  08:00:27:28:e1:9b <BROADCAST,MULTICAST,PROMISC,UP,LOWER_UP>",
+  ]),
+  P("Las cuatro máquinas están encendidas, tienen su dirección en la red aislada y se ven entre ellas; las víctimas ejecutan servicios reales distintos; y deception-central tiene la red macvlan y el modo promiscuo que necesitan las trampas para tener su propia IP en la LAN."),
+
+  H2("3.4. Ejecución completa de la herramienta"),
+  P("Flujo completo con la CLI sobre una base de datos limpia (`casos.db`), con salidas reales del 27 de noviembre de 2026 (evidencias 04-14). Las altas se hicieron con el script del laboratorio porque `hosts add` pide la contraseña por teclado."),
+  ...Codigo([
+    "$ securization hosts list",
+    "deception-central    10.0.0.5        lab@10.0.0.5:22              linux",
+    "victima-01           10.0.0.10       lab@10.0.0.10:22             linux",
+    "victima-02           10.0.0.11       lab@10.0.0.11:22             linux",
+    "",
+    "$ securization profile victima-01                                   (28 s)",
+    "victima-01 - Debian GNU/Linux 13 (trixie)",
+    "  22/tcp ssh OpenSSH 10.0p2 Debian 7+deb13u4",
+    "  80/tcp http nginx",
+    "  3306/tcp mysql MariaDB 10.3.23 or earlier",
+    "  paquete mariadb-server 1:11.8.9+ds-0+deb13u1",
+    "",
+    "$ securization campaign victima-01 --decoy-node web-01 --decoy-ip 10.0.0.50   (104 s)",
+    "Intento 1: 50/90",
+    "    - SO distinguible: el señuelo delata ubuntu y el host real muestra debian",
+    "    - producto y versión … en 3306/tcp: real='MariaDB' señuelo='MySQL'; versión: … señuelo='5.5.43-0ubuntu0.14.04.1' …",
+    "Intento 2: 90/90",
+    "    - versión y extrainfo y banner distinto en 3306/tcp: … señuelo='mysql-handshake 5.5.5-11.8.9-MariaDB-0+deb13u1'",
+    "Parada: aprobado. Plan campana-victima-01 guardado SIN aprobar.",
+    "Breadcrumbs previstos: /home/lab/.env, /home/lab/.my.cnf, /home/lab/db_backup.sql, /home/lab/notas_acceso.txt",
+    "",
+    "$ securization deploy campana-victima-01          (antes de aprobar; código de salida 1)",
+    "campana-victima-01: el plan no está aprobado; usa `securization approve`",
+    "",
+    "   … el operador aprueba el plan en el dashboard …",
+    "",
+    "$ securization deploy campana-victima-01                            (13 s)",
+    "Plantados 4 breadcrumbs en victima-01; señuelo decoy-web-01",
+  ]),
+  P("La campaña de victima-02 (files-02 en 10.0.0.51) superó el umbral a la primera (90/90 en 43 s) y se desplegó con 3 cebos (`.env`, `.netrc` y `notas_acceso.txt`)."),
+
+  H2("3.5. Resultados: línea base H2 frente a señuelo ajustado H4"),
   P("La comparación central del proyecto es la del señuelo determinista sin ajuste (H2) frente al mismo señuelo tras el bucle de verificación (H4), medida con nmap `-sV -O` tanto desde la torre como desde Kali:"),
   Tabla(["Señuelo (host real)", "H2", "H4", "Qué cambió el bucle"], [
     ["web-01 (victima-01)", "50", "90", "El saludo de MySQL del señuelo anunciaba `5.5.43-0ubuntu0.14.04.1`, que delata Ubuntu en una red Debian. El ajuste lo sustituyó por `5.5.5-11.8.9-MariaDB-0+deb13u1`, derivado del paquete instalado en el host real"],
@@ -260,7 +349,68 @@ const pruebas = [
     ["Barrido de puertos", "Sin alerta: el módulo `portscan` de OpenCanary está desactivado"],
   ], [42, 58]),
 
-  H2("3.4. Validación del código generado por IA"),
+  H2("3.6. Batería de ataques reales (casos de prueba)"),
+  P("El 27 de noviembre de 2026, con las dos trampas desplegadas, se lanzó desde Kali una batería de ataques reales con `lab/evidencias/ataques.py`, que guarda el comando, la hora y la salida de cada uno (evidencias 20-33). Los pasos «en la víctima» simulan a un atacante que ya ha entrado en ese equipo y busca credenciales. Cada caso indica la técnica de MITRE ATT&CK que representa."),
+  Tabla(["ID", "Técnica (ATT&CK)", "Ataque", "Resultado esperado", "Resultado obtenido"], [
+    ["A1", "Descubrimiento de servicios (T1046)", "`nmap -sV -O` al host real 10.0.0.10 y a la trampa 10.0.0.50", "Que no se distingan", "Mismos servicios y versiones de OpenSSH y nginx y huella TCP/IP casi idéntica; solo difiere el texto de versión de MariaDB (10.3.23 frente a 5.5.5-11.8.9). Alerta de conexión SSH"],
+    ["A2", "Descubrimiento de servicios (T1046)", "Barrido `nmap -sS` de los 1000 puertos más comunes de la trampa", "Mismos puertos que el real", "22, 80 y 3306 abiertos. **Sin alerta**: el módulo `portscan` está desactivado (limitación)"],
+    ["A3", "Credenciales en ficheros (T1552.001)", "En victima-01: leer `~/.my.cnf` y `~/.env`", "Encontrar credenciales", "Credenciales falsas de MySQL y de la intranet que apuntan a 10.0.0.50"],
+    ["A4", "Cuentas válidas (T1078)", "Credencial del `.my.cnf` contra el MySQL de la trampa", "Acceso denegado y alerta atribuida", "`ERROR 1045 Access denied`; alerta 8001 marcada **breadcrumb mysql** en campana-victima-01"],
+    ["A5", "Cuentas válidas (T1078)", "Credencial de la intranet (`.env`) en el login web de la trampa", "Alerta atribuida", "HTTP 200 (página de login); alerta 3001 **breadcrumb http** con usuario y contraseña"],
+    ["A6", "Fuerza bruta (T1110.001)", "`hydra` con 5 contraseñas contra SSH de la trampa", "Ninguna válida; todo registrado", "0 válidas; los 5 intentos registrados (4002) con usuario y contraseña"],
+    ["A7", "Escaneo activo (T1595)", "`whatweb` al host real y a la trampa", "Misma huella web", "**Se distingue**: «Intranet» frente a «Synology RackStation» (limitación). Alerta de visita (3000)"],
+    ["A8", "Credenciales en ficheros (T1552.001)", "En victima-02: leer `~/.netrc` y `~/.env`", "Encontrar credenciales", "Usuario `backup` de FTP y `REDIS_URL` que apuntan a 10.0.0.51"],
+    ["A9", "Cuentas válidas (T1078)", "Credencial del `.netrc` contra el FTP de la trampa", "Acceso denegado y alerta atribuida", "Login rechazado (curl, código 67); alerta 2000 **breadcrumb ftp**"],
+    ["A10", "Cuentas válidas (T1078)", "Contraseña de `REDIS_URL` con `AUTH` contra el Redis de la trampa", "Alerta atribuida", "Alerta 17001 **breadcrumb redis**. Un primer intento, con la contraseña mal extraída por el script de ataque, quedó como orden Redis sin atribuir"],
+    ["A11", "Fuerza bruta (T1110.001)", "`hydra` con 5 contraseñas contra FTP de la trampa", "Ninguna válida; todo registrado", "0 válidas; 5 alertas 2000"],
+  ], [6, 18, 26, 16, 34]),
+  Sep(),
+  P("Resultado: los **cuatro** cebos usados por el atacante (MySQL, web, FTP y Redis) generaron una alerta atribuida a su campaña y al cebo concreto, y todos los ataques contra las trampas quedaron registrados salvo el barrido de puertos. Los dos casos que «fallan» (A2 sin alerta y A7, donde whatweb distingue la trampa) son limitaciones ya conocidas de OpenCanary y se recogen en el apartado 6."),
+
+  H2("3.7. Cómo muestra la información la herramienta"),
+  P("La misma información llega al operador de tres formas. En bruto, cada trampa escribe una línea JSON por evento (evidencia 42); por ejemplo, el login web del caso A5 y el intento MySQL del caso A4:"),
+  ...Codigo([
+    "{\"dst_host\": \"10.0.0.50\", \"dst_port\": 80, \"logdata\": {\"HOSTNAME\": \"10.0.0.50\", \"PASSWORD\": \"7UkXE8Wpk2ybB3TR\",",
+    " \"PATH\": \"/index.html\", \"SKIN\": \"nasLogin\", \"USERAGENT\": \"curl/8.19.0\", \"USERNAME\": \"intranet_admin\"},",
+    " \"logtype\": 3001, \"node_id\": \"web-01\", \"src_host\": \"10.0.0.20\", \"utc_time\": \"2026-11-27 18:55:48.066307\"}",
+    "{\"dst_host\": \"10.0.0.50\", \"dst_port\": 3306, \"logdata\": {\"PASSWORD\": \"b541020841dee0963cca0b893184eeee9267bfbd\",",
+    " \"USERNAME\": \"app_svc\"}, \"logtype\": 8001, \"node_id\": \"web-01\", \"src_host\": \"10.0.0.20\", …}",
+  ]),
+  P("Las contraseñas que aparecen son las falsas de los cebos, no credenciales reales. La de MySQL llega cifrada por el propio protocolo, así que ese cebo se atribuye por el usuario. La herramienta recoge estas líneas, las asocia a su campaña y marca las que usan un cebo. En la terminal (evidencia 41, recortada):"),
+  ...Codigo([
+    "$ securization events list",
+    "2026-11-27 18:58:53 campana-victima-02     files-02   10.0.0.20       :6379  17001  breadcrumb redis",
+    "2026-11-27 18:58:17 campana-victima-02     files-02   10.0.0.20       :21    2000",
+    "2026-11-27 18:58:11 campana-victima-02     files-02   10.0.0.20       :21    2000   breadcrumb ftp",
+    "2026-11-27 18:56:27 campana-victima-01     web-01     10.0.0.20       :80    3000",
+    "2026-11-27 18:55:53 campana-victima-01     web-01     10.0.0.20       :22    4002",
+    "2026-11-27 18:55:48 campana-victima-01     web-01     10.0.0.20       :80    3001   breadcrumb http",
+    "2026-11-27 18:55:45 campana-victima-01     web-01     10.0.0.20       :3306  8001   breadcrumb mysql",
+    "2026-11-27 18:25:41 campana-victima-02     files-02   10.0.0.1        :6379  17001",
+  ]),
+  P("Y en el dashboard, en lenguaje llano y ordenadas por gravedad: las que usan un cebo se destacan en rojo porque indican que alguien ya ha entrado en un equipo real. Las alertas que vienen de 10.0.0.1 son los escaneos de verificación de la propia herramienta; el dashboard las presenta como comprobaciones y no como un intruso."),
+  Captura("26-ui-alertas.jpg", [800, 781], 520),
+  Pie("Figura 6. Alertas del dashboard tras la batería de ataques: contraseñas-cebo de Redis y FTP usadas desde Kali y los intentos de fuerza bruta."),
+
+  H2("3.8. Ciclo de vida de las pruebas"),
+  P("Las pruebas se organizan en cinco niveles, de los más baratos y frecuentes a los más completos y caros. Cada nivel cubre lo que el anterior no puede demostrar:"),
+  Tabla(["Nivel", "Cuándo", "Qué comprueba", "Cómo"], [
+    ["1. Tests con dobles (TDD)", "Antes de implementar cada tarea", "La lógica y los comandos exactos que se enviarían, sin red", "pytest con salidas reales en `tests/fixtures/`"],
+    ["2. Calidad estática", "En cada cambio y en cada PR", "Estilo, tipos, seguridad del propio código y dependencias", "ruff, mypy `--strict`, bandit y pip-audit en GitHub Actions"],
+    ["3. Integración en el laboratorio", "Al cerrar cada sesión L1-L6", "Que funciona contra SSH, nmap, Docker y OpenCanary reales", "Scripts de `lab/` contra las VMs"],
+    ["4. Ensayo de extremo a extremo", "Antes de la demo y de la entrega", "El flujo completo como lo usará el operador", "CLI y dashboard sobre una base de datos limpia; encontró 3 fallos de usabilidad (apartado 3.9)"],
+    ["5. Pruebas ofensivas", "H7 (23/11) y entrega (27/11)", "La herramienta vista por un atacante real", "Batería del apartado 3.6 desde Kali"],
+  ], [20, 18, 30, 32]),
+  Sep(),
+  P("Cada ejecución de las pruebas de los niveles 4 y 5 sigue el mismo ciclo:"),
+  N("**Preparación**: laboratorio encendido y comprobado (apartado 3.3), sin trampas ni cebos de ejecuciones anteriores, base de datos nueva y relojes en hora.", "ciclo"),
+  N("**Ejecución**: perfil, campaña y despliegue con la herramienta; la aprobación la da siempre el operador.", "ciclo"),
+  N("**Ataque**: la batería de casos desde Kali.", "ciclo"),
+  N("**Evidencias**: cada paso guarda su comando, fecha, duración y salida (`lab/evidencias/ev.py`), más capturas del dashboard.", "ciclo"),
+  N("**Análisis**: comparación del resultado esperado con el obtenido, caso a caso.", "ciclo"),
+  N("**Limpieza**: se retiran las trampas, se apartan los cebos de los equipos reales y se apagan las VMs, para que la siguiente ejecución empiece de cero.", "ciclo"),
+
+  H2("3.9. Validación del código generado por IA"),
   P("Todo el código se generó con un agente de IA (apartado 4), así que la validación es la parte que da confianza en él. Además de las comprobaciones automáticas, se detectaron y corrigieron estos errores, la mayoría solo visibles al probar contra el laboratorio real:"),
   Tabla(["Error detectado", "Cómo se detectó", "Corrección"], [
     ["El perfilador devolvía un perfil parcial si fallaba un comando SSH", "Revisión de los tests (entrega intermedia)", "Cualquier fallo propaga `ProfilingError` con el host; test dedicado"],
@@ -275,6 +425,8 @@ const pruebas = [
     ["La imagen Docker no se construía (README mal referenciado) y el volumen de datos no tenía permisos para el usuario sin root", "Construcción real en deception-central", "Corrección de `pyproject.toml` y preparación del volumen documentada"],
     ["Fallos de formato en la CI en dos PR", "GitHub Actions", "Commits de formato antes de fusionar"],
     ["Un commit generado llevaba una marca de IA contraria a las reglas del proyecto", "Revisión del alumno", "Commit corregido y regla guardada para el agente"],
+    ["La CLI mostraba una traza de Python al chocar con un cebo ya existente, y el dashboard era ilegible en un navegador con tema oscuro", "Ensayo de la demo (nivel 4)", "Mensaje claro sin arrancar nada; fondo explícito en el dashboard"],
+    ["El dashboard presentaba los escaneos de verificación de la propia herramienta como un posible intruso, y ofrecía desplegar una trampa ya desplegada", "Revisión de la interfaz con datos reales", "Reconocimiento de la IP del orquestador y registro de la fecha de despliegue (`deployed_at`)"],
   ], [38, 24, 38]),
   Sep(),
   P("La lección común es que la mayoría de estos errores no los detecta ninguna herramienta estática ni los tests con dobles: el código era correcto respecto a lo que el agente creía del entorno, pero el entorno real se comportaba de otra forma (OpenCanary, OpenSSH, nmap, MariaDB). Por eso la validación en el laboratorio ha sido imprescindible."),
@@ -292,7 +444,8 @@ const usoIA = [
   Sep(),
   P("El agente trabajó dentro del repositorio siguiendo las reglas de `CLAUDE.md`, que actúa como contrato entre el alumno y el agente: alcance, principio de diseño, reglas de código obligatorias, flujo de trabajo y trazabilidad. Cada tarea tiene una entrada en `AI_USAGE.md` (fecha, herramienta, resumen del prompt, qué se generó, qué se modificó a mano y commit asociado): 32 entradas a fecha de esta memoria."),
   H2("4.2. Tareas en las que se ha usado"),
-  B("Todo el código del paquete (12 módulos) y sus 601 tests."),
+  B("Todo el código del paquete (14 módulos) y sus 650 tests."),
+  B("El rediseño del dashboard para un público no técnico (barras de progreso, mapa de la red, alertas en lenguaje llano) y la batería de ataques con su recogida de evidencias."),
   B("Los scripts de aprovisionamiento y de prueba del laboratorio (`lab/`): creación de las VMs, IPs estáticas, servicios de las víctimas, Docker y macvlan, y las pruebas de L3 a L6."),
   B("La operación del laboratorio: el agente tenía permiso explícito del alumno para conectarse por SSH a las VMs y gestionarlas (VBoxManage), lo que le permitió diagnosticar problemas como el bloqueo de las VMs con Hyper-V o el modo promiscuo que necesitan los señuelos."),
   B("La documentación (README, `docs/PLAN.md`, `docs/lab-design.md`, `AI_USAGE.md`) y la preparación de esta memoria y de la presentación."),
@@ -362,9 +515,9 @@ const limitaciones = [
   B("**El contenido HTTP no se replica.** OpenCanary solo ofrece páginas de login predefinidas; whatweb distingue el señuelo («Synology RackStation») del host real («Intranet»), algo que nmap no ve y que el verificador no mide."),
   B("**Diferencias que OpenCanary no permite corregir.** El rechazo `unauthorized` de MariaDB (que incluye la IP del escáner), el modo protegido de Redis y MySQL 8, que OpenCanary no puede anunciar."),
   B("**Sin alerta de barridos de puertos**, porque el módulo `portscan` de OpenCanary está desactivado."),
-  B("**Los escaneos del propio bucle de verificación generan alertas** en el señuelo (con origen en la máquina del orquestador); hoy se distinguen por la IP de origen, pero no se filtran de forma automática."),
+  B("**Los escaneos del propio bucle de verificación generan alertas** en el señuelo (con origen en la máquina del orquestador). El dashboard las reconoce por la IP del orquestador y las presenta como comprobaciones, pero se siguen guardando y contando como alertas."),
   B("**El hostname del LLM no se aplica solo**: el operador lo pasa a `campaign` con `--decoy-node`."),
-  B("**Seguridad de la propia herramienta pensada para el laboratorio.** El SSH usa contraseña y no verifica la clave del host (`known_hosts` desactivado porque las VMs se recrean), y el dashboard no tiene autenticación. En una red real habría que fijar las claves de host y proteger el dashboard."),
+  B("**Seguridad de la propia herramienta pensada para el laboratorio.** El SSH usa contraseña y no verifica la clave del host (`known_hosts` desactivado porque las VMs se recrean), y el dashboard no tiene autenticación: por eso solo permite lanzar operaciones cuando escucha en local (o si se fuerza con `--acciones`). En una red real habría que fijar las claves de host y proteger el dashboard."),
   B("**Solo Linux e IPv4**, un único host de señuelos y un umbral fijo (90). Una puntuación en el umbral no garantiza que el señuelo sea indistinguible."),
   H2("6.2. Líneas futuras"),
   N("Aplicar la contención con un `ContainmentBackend` (nftables en Linux) tras una confirmación del operador, con la regla ya construida y probada.", "futuro"),
@@ -419,7 +572,8 @@ const manual = [
     "securization events list",
     "securization dashboard --host 127.0.0.1 --port 8000",
   ]),
-  P("`campaign` arranca el señuelo solo para verificarlo y deja el plan guardado sin aprobar; `approve` falla si la puntuación no supera el umbral; `deploy` exige el plan aprobado. El dashboard muestra el inventario, las campañas con los intentos del bucle y sus diferencias, el botón de aprobación y los eventos por campaña."),
+  P("`campaign` arranca el señuelo solo para verificarlo y deja el plan guardado sin aprobar; `approve` falla si la puntuación no supera el umbral; `deploy` exige el plan aprobado. Las operaciones largas pintan una barra de progreso en la terminal."),
+  P("**Desde el dashboard**, el mismo flujo se hace sin terminal, salvo el alta de equipos: en «Equipos» se pulsa «Analizar»; en la ficha del equipo, «Crear la trampa de este equipo» (con el nombre y la IP libre que se proponen); en la trampa, «Aprobar despliegue» y después «Desplegar en la red»; y en «Alertas», «Recoger alertas ahora». Cada acción muestra una barra de progreso con el paso en curso. Si el dashboard escucha en una dirección que no es local (por ejemplo, en Docker Compose), queda en modo solo lectura salvo que se arranque con `securization dashboard --acciones`."),
   H2("7.4. Notas de operación"),
   B("Un host Docker no alcanza sus propios contenedores macvlan: `campaign` debe lanzarse desde una máquina distinta del host de señuelos."),
   B("Los señuelos necesitan el modo promiscuo en dos niveles: en el adaptador de VirtualBox (`allow-all`) y dentro del invitado (`ip link set <iface> promisc on`); `lab/provision_deception.py` lo deja configurado."),
@@ -455,6 +609,9 @@ const doc = new Document({
         { level: 1, format: LevelFormat.BULLET, text: "–", alignment: AlignmentType.LEFT,
           style: { paragraph: { indent: { left: 1080, hanging: 270 } } } } ] },
       { reference: "numeros", levels: [
+        { level: 0, format: LevelFormat.DECIMAL, text: "%1.", alignment: AlignmentType.LEFT,
+          style: { paragraph: { indent: { left: 540, hanging: 300 } } } } ] },
+      { reference: "ciclo", levels: [
         { level: 0, format: LevelFormat.DECIMAL, text: "%1.", alignment: AlignmentType.LEFT,
           style: { paragraph: { indent: { left: 540, hanging: 300 } } } } ] },
       { reference: "futuro", levels: [
