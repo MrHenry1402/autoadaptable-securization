@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}securization - cómo funciona{% endblock %}
+{% block nav_ayuda %}activo{% endblock %}
+{% block content %}
+<h1>¿Cómo funciona?</h1>
+<p class="sub">La idea es la de un cebo: en vez de intentar ver a un intruso entre todo el tráfico normal,
+  se ponen cosas que <strong>nadie legítimo usaría nunca</strong>. Quien las toca se delata.</p>
+
+<div class="tarjeta">
+  <h2 style="margin-top:0">El recorrido, paso a paso</h2>
+  <ol>
+    <li><strong>Registrar los equipos</strong> que quieres proteger (solo esos: la herramienta no toca nada más).</li>
+    <li><strong>Analizarlos</strong>: se conecta por SSH y los escanea para saber qué sistema y qué servicios tienen, y qué responden exactamente.</li>
+    <li><strong>Crear la trampa</strong>: un equipo falso con su propia dirección en la red que imita a uno real.</li>
+    <li><strong>Comprobar que no se nota</strong>: la herramienta escanea la trampa como lo haría un atacante, la compara con el equipo real y la corrige hasta que no se distinga.</li>
+    <li><strong>Aprobar</strong>: tú das el visto bueno. Sin aprobación no se despliega nada.</li>
+    <li><strong>Desplegar</strong>: la trampa queda en la red y en el equipo real se dejan ficheros cebo con contraseñas falsas que apuntan a ella.</li>
+    <li><strong>Vigilar</strong>: si alguien toca la trampa o usa una contraseña-cebo, aparece una alerta.</li>
+  </ol>
+</div>
+
+<div class="tarjeta">
+  <h2 style="margin-top:0">Glosario</h2>
+  <table>
+    <tbody>
+      <tr><td><strong>Equipo real</strong></td><td>Un servidor de tu red que quieres proteger (por ejemplo, el de la web o el de ficheros).</td></tr>
+      <tr><td><strong>Trampa (señuelo, honeypot)</strong></td><td>Equipo falso que parece real. No tiene datos ni uso legítimo: cualquier contacto es sospechoso.</td></tr>
+      <tr><td><strong>Cebo (breadcrumb)</strong></td><td>Fichero con una contraseña falsa que se deja en un equipo real. Solo sirve para entrar en la trampa: si alguien la usa, ya había entrado en el equipo real.</td></tr>
+      <tr><td><strong>Nota de parecido (plausibilidad)</strong></td><td>De 0 a 100, cuánto se parece la trampa al equipo real visto desde fuera. Por debajo del umbral, un atacante podría notar el engaño.</td></tr>
+      <tr><td><strong>Escaneo (nmap)</strong></td><td>La forma en que un atacante pregunta a un equipo qué servicios tiene. La herramienta usa la misma para comprobar sus trampas.</td></tr>
+      <tr><td><strong>Alerta</strong></td><td>Aviso de que alguien ha interactuado con una trampa: quién, cuándo y qué intentó.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="tarjeta">
+  <h2 style="margin-top:0">¿Es seguro?</h2>
+  <ul>
+    <li>Nunca cambia la configuración de tus equipos ni sobrescribe ficheros: solo añade cebos nuevos.</li>
+    <li>Las contraseñas de acceso a tus equipos se guardan cifradas.</li>
+    <li>La inteligencia artificial solo propone textos (como el nombre de la trampa); nunca decide ni ejecuta nada.</li>
+    <li>Nada se despliega sin superar la nota mínima y sin tu aprobación.</li>
+  </ul>
+</div>
+{% endblock %}

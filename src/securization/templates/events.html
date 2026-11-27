@@ -1,36 +1,52 @@
 {% extends "base.html" %}
-{% block title %}securization - eventos{% endblock %}
+{% block title %}securization - alertas{% endblock %}
+{% block nav_alertas %}activo{% endblock %}
 {% block content %}
-<h1>Eventos</h1>
+<h1>Alertas</h1>
+<p class="sub">Todo contacto con una trampa genera una alerta, porque nadie legítimo debería tocarla.
+  Las más graves (🚨) son las que usan una <strong>contraseña-cebo</strong>: significan que alguien ya ha entrado en un equipo real y está intentando moverse por la red.</p>
+
+{% if acciones %}
+<div id="zona-trabajo"></div>
+<form hx-post="/acciones/alertas" hx-target="#zona-trabajo" hx-swap="afterbegin" style="margin-bottom:1rem">
+  <button class="boton" type="submit">🔄 Recoger alertas ahora</button>
+</form>
+{% endif %}
+
 {% if not events %}
-<p>Todavía no hay alertas de los señuelos. Se recogen con <code>securization events collect</code>.</p>
+<p class="info">Todavía no hay alertas de los señuelos (trampas).</p>
 {% else %}
-<h2>Por campaña</h2>
-<table>
-  <thead><tr><th>campaña</th><th>alertas</th><th>con credencial de un breadcrumb</th></tr></thead>
-  <tbody>
+<div class="rejilla" style="margin-bottom:1rem">
   {% for campana, total in by_campaign.items() %}
-    <tr><td><a href="/campaigns/{{ campana }}">{{ campana }}</a></td><td>{{ total }}</td>
-        <td>{{ breadcrumb_uses.get(campana, 0) }}</td></tr>
+  <a class="cifra {% if breadcrumb_uses.get(campana, 0) %}destacada{% endif %}" href="/campaigns/{{ campana }}" style="text-decoration:none;color:inherit">
+    <span class="n">{{ total }}</span><span class="t">alertas en {{ campana }}<br>{{ breadcrumb_uses.get(campana, 0) }} con contraseña-cebo</span>
+  </a>
   {% endfor %}
-  </tbody>
-</table>
-<h2>Últimas alertas</h2>
+</div>
+
+{% for e in events %}{% set a = describir_alerta(e) %}
+<div class="alerta {{ a.gravedad }}">
+  <div class="icono">{% if a.gravedad == "alta" %}🚨{% elif a.gravedad == "media" %}⚠️{% elif a.gravedad == "propia" %}🔧{% else %}👀{% endif %}</div>
+  <div>
+    <h4>{{ a.titulo }}</h4>
+    <p>{{ a.detalle }}</p>
+    <p class="mono" style="margin-top:.2rem">{{ e.campaign_id }} · trampa {{ e.node_id }} · origen {{ e.src_host }} · puerto {{ e.dst_port }}
+      {% if e.breadcrumb_service %}· <span class="chip chip-mal">breadcrumb {{ e.breadcrumb_service }}</span>{% endif %}</p>
+  </div>
+  <div class="cuando">{{ e.timestamp.strftime("%d/%m/%Y %H:%M:%S") }}</div>
+</div>
+{% endfor %}
+
+<details class="tarjeta"><summary>Ver como tabla técnica</summary>
 <table>
   <thead><tr><th>hora</th><th>campaña</th><th>señuelo</th><th>origen</th><th>puerto</th><th>tipo</th><th>breadcrumb</th></tr></thead>
   <tbody>
   {% for e in events %}
-    <tr>
-      <td>{{ e.timestamp.strftime("%Y-%m-%d %H:%M:%S") }}</td>
-      <td><a href="/campaigns/{{ e.campaign_id }}">{{ e.campaign_id }}</a></td>
-      <td>{{ e.node_id }}</td>
-      <td>{{ e.src_host }}</td>
-      <td>{{ e.dst_port }}</td>
-      <td>{{ e.logtype }}</td>
-      <td>{% if e.breadcrumb_service %}<span class="badge badge-fail">breadcrumb {{ e.breadcrumb_service }}</span>{% endif %}</td>
-    </tr>
+    <tr><td>{{ e.timestamp.strftime("%Y-%m-%d %H:%M:%S") }}</td><td>{{ e.campaign_id }}</td><td>{{ e.node_id }}</td>
+      <td>{{ e.src_host }}</td><td>{{ e.dst_port }}</td><td>{{ e.logtype }}</td><td>{{ e.breadcrumb_service or "" }}</td></tr>
   {% endfor %}
   </tbody>
 </table>
+</details>
 {% endif %}
 {% endblock %}

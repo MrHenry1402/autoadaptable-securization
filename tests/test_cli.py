@@ -282,3 +282,71 @@ def test_runtime_from_env_lee_la_configuracion(
     monkeypatch.setenv("SECURIZATION_DECOY_DIR", "/srv/decoys")
     rt = cli.Runtime.from_env()
     assert (rt.deception_host, rt.decoy_config_dir) == ("dc-2", "/srv/decoys")
+
+
+# --- campaign y deploy por las operaciones (con barra de progreso) -------------------------
+
+
+async def test_campaign_imprime_los_intentos_y_el_plan(
+    rt: FakeRuntime, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from securization.operaciones import ResultadoCampana
+    from securization.orquestador import VerificationAttempt, VerificationResult
+
+    plan = build_deployment_plan(CAMPANA, _reporte(90))
+    verificacion = VerificationResult(
+        campaign=CAMPANA,
+        report=_reporte(90),
+        attempts=[VerificationAttempt(attempt=1, opencanary_config={}, report=_reporte(90))],
+        stop_reason="aprobado",
+    )
+
+    async def falso(*_a: object, **_k: object) -> ResultadoCampana:
+        return ResultadoCampana(verificacion, plan)
+
+    monkeypatch.setattr(cli, "crear_campana", falso)
+    args = cli.build_parser().parse_args(
+        ["campaign", "victima-02", "--decoy-node", "files-02", "--decoy-ip", "10.0.0.51"]
+    )
+    await cli.run_command(args, rt)
+    salida = capsys.readouterr().out
+    assert "Intento 1: 90/90" in salida
+    assert "guardado SIN aprobar" in salida
+
+
+async def test_deploy_aprobado_imprime_lo_desplegado(
+    rt: FakeRuntime, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    DeploymentPlanStore(rt.engine).save(build_deployment_plan(CAMPANA, _reporte(95)))
+
+    async def falso(*_a: object, **_k: object) -> str:
+        return "decoy-files-02"
+
+    monkeypatch.setattr(cli, "desplegar", falso)
+    await cli.run_command(cli.build_parser().parse_args(["deploy", CAMPANA.campaign_id]), rt)
+    assert "señuelo decoy-files-02" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ("host", "forzar", "esperado"),
+    [
+        ("127.0.0.1", False, True),
+        ("::1", False, True),
+        ("localhost", False, True),
+        ("0.0.0.0", False, False),  # noqa: S104 - es justo el caso que se prueba
+        ("0.0.0.0", True, True),  # noqa: S104
+        ("mi-servidor", False, False),
+    ],
+)
+def test_acciones_solo_en_local_salvo_que_se_fuercen(
+    host: str, forzar: bool, esperado: bool
+) -> None:
+    assert cli.acciones_permitidas(host, forzar) is esperado
+
+
+def test_ip_local_hacia_localhost() -> None:
+    assert cli.ip_local_hacia("127.0.0.1") == "127.0.0.1"
+
+
+def test_ip_local_hacia_destino_no_valido() -> None:
+    assert cli.ip_local_hacia("no-es-una-ip.invalid") is None

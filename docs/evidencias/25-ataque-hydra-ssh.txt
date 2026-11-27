@@ -1,0 +1,11 @@
+# 2026-11-27 18:55:49 UTC · 9 s · desde kali (10.0.0.20)
+# Fuerza bruta SSH contra el señuelo (5 contraseñas)
+$ hydra -l root -P /tmp/claves.txt -t 2 -I ssh://10.0.0.50
+
+Hydra v9.5 (c) 2023 by van Hauser/THC & David Maciejak - Please do not use in military or secret service organizations, or for illegal purposes (this is non-binding, these *** ignore laws and ethics anyway).
+
+Hydra (https://github.com/vanhauser-thc/thc-hydra) starting at 2026-11-27 19:55:50
+[DATA] max 2 tasks per 1 server, overall 2 tasks, 5 login tries (l:1/p:5), ~3 tries per task
+[DATA] attacking ssh://10.0.0.50:22/
+1 of 1 target completed, 0 valid password found
+Hydra (https://github.com/vanhauser-thc/thc-hydra) finished at 2026-11-27 19:55:53

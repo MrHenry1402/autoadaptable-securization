@@ -1,0 +1,6 @@
+# 2026-11-27 18:22:27 UTC · 1 s · código de salida 0
+$ securization hosts list
+
+deception-central    10.0.0.5        lab@10.0.0.5:22              linux
+victima-01           10.0.0.10       lab@10.0.0.10:22             linux
+victima-02           10.0.0.11       lab@10.0.0.11:22             linux

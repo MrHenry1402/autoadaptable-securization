@@ -1,0 +1,15 @@
+# 2026-11-27 18:55:23 UTC · 19 s · desde kali (10.0.0.20)
+# Barrido de los 1000 puertos TCP más comunes del señuelo
+$ sudo -n nmap -sS --top-ports 1000 -T4 --max-retries 1 10.0.0.50
+
+Starting Nmap 7.95 ( https://nmap.org ) at 2026-11-27 19:55 CET
+Nmap scan report for 10.0.0.50
+Host is up (0.0098s latency).
+Not shown: 997 closed tcp ports (reset)
+PORT     STATE SERVICE
+22/tcp   open  ssh
+80/tcp   open  http
+3306/tcp open  mysql
+MAC Address: 08:00:27:0B:9D:9F (PCS Systemtechnik/Oracle VirtualBox virtual NIC)
+
+Nmap done: 1 IP address (1 host up) scanned in 15.15 seconds

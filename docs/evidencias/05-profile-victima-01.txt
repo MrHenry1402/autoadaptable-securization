@@ -1,0 +1,10 @@
+# 2026-11-27 18:22:29 UTC · 28 s · código de salida 0
+$ securization profile victima-01
+
+victima-01 - Debian GNU/Linux 13 (trixie)
+  22/tcp ssh OpenSSH 10.0p2 Debian 7+deb13u4
+  80/tcp http nginx
+  3306/tcp mysql MariaDB 10.3.23 or earlier
+  paquete mariadb-server 1:11.8.9+ds-0+deb13u1
+  paquete nginx 1.26.3-3+deb13u11
+  paquete openssh-server 1:10.0p1-7+deb13u4

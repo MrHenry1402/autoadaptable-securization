@@ -1,0 +1,6 @@
+# 2026-11-27 18:58:53 UTC · 2 s · desde kali (10.0.0.20)
+# Movimiento lateral: contraseña de REDIS_URL (~/.env) contra el Redis del señuelo
+$ redis-cli -h 10.0.0.51 AUTH ACnJK99axFDY2P8u
+
+NOAUTH Authentication required.
+
