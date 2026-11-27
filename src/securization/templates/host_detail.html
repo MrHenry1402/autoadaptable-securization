@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}securization - {{ host.host_id }}{% endblock %}
+{% block content %}
+<h1>{{ host.host_id }}</h1>
+<p><strong>Dirección:</strong> {{ host.address }} &middot; <strong>SO:</strong> {{ host.os_family }}
+   &middot; <strong>Usuario SSH:</strong> {{ host.ssh_user }}:{{ host.ssh_port }}</p>
+
+{% if profile %}
+<h2>Perfil</h2>
+<p><strong>Sistema:</strong> {{ profile.os_name }}</p>
+<p><strong>Directorios de primer nivel:</strong> {{ profile.top_level_dirs | join(", ") }}</p>
+<h3>Servicios</h3>
+<table>
+  <thead><tr><th>puerto</th><th>protocolo</th><th>nombre</th><th>banner</th></tr></thead>
+  <tbody>
+  {% for servicio in profile.services %}
+    <tr>
+      <td>{{ servicio.port }}</td>
+      <td>{{ servicio.protocol }}</td>
+      <td>{{ servicio.name }}</td>
+      <td>{{ servicio.banner or "—" }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="warning">Este host todavía no se ha perfilado.</p>
+{% endif %}
+{% endblock %}

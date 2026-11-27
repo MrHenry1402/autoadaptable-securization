@@ -1,18 +1,26 @@
 """Tests del módulo de escaneo: parseo de nmap XML, IPs libres y comandos de nmap."""
 
+import asyncio
+from collections.abc import Sequence
 from ipaddress import IPv4Address
 from pathlib import Path
 
 import pytest
 
 from securization.escaneo import (
+    AsyncNmapRunner,
+    NmapScanError,
+    ProcessRunner,
     build_ping_sweep_command,
     build_scan_command,
+    enrich_profile,
     find_free_ips,
     parse_alive_hosts,
     parse_nmap_xml,
+    profile_tcp_ports,
+    scan_host,
 )
-from securization.modelos import Fingerprint, OsMatch, ServiceInfo
+from securization.modelos import Fingerprint, HostProfile, OsFamily, OsMatch, ServiceInfo
 from securization.parsing import ParseError
 
 FIXTURES = Path(__file__).parent / "fixtures" / "nmap"
@@ -203,8 +211,23 @@ def test_ips_libres_rechaza_redes_no_validas_o_enormes(red: str) -> None:
 
 
 def test_comando_de_escaneo() -> None:
-    assert build_scan_command("10.0.0.10") == ("nmap", "-sV", "-O", "-oX", "-", "10.0.0.10")
+    assert build_scan_command("10.0.0.10") == (
+        "nmap",
+        "-sV",
+        "-O",
+        "--script",
+        "banner,http-server-header",
+        "-oX",
+        "-",
+        "10.0.0.10",
+    )
     assert build_scan_command(IPv4Address("10.0.0.10")) == build_scan_command("10.0.0.10")
+
+
+def test_comando_de_escaneo_captura_banners_con_scripts() -> None:
+    # Sin los scripts, nmap no rellena `banner` y el verificador compararía None con None.
+    comando = build_scan_command("10.0.0.10")
+    assert comando[comando.index("--script") + 1] == "banner,http-server-header"
 
 
 @pytest.mark.parametrize(
@@ -216,6 +239,148 @@ def test_comando_de_escaneo_rechaza_destinos_que_no_son_una_ip(direccion: str) -
         build_scan_command(direccion)
 
 
+def test_comando_de_escaneo_con_puertos_los_limita_con_p() -> None:
+    assert build_scan_command("10.0.0.11", ports=[22, 21, 6379]) == (
+        "nmap",
+        "-sV",
+        "-O",
+        "--script",
+        "banner,http-server-header",
+        "-p",
+        "21,22,6379",
+        "-oX",
+        "-",
+        "10.0.0.11",
+    )
+
+
+def _valor_de_p(comando: tuple[str, ...]) -> str:
+    return comando[comando.index("-p") + 1]
+
+
+def test_comando_de_escaneo_con_puertos_quita_duplicados() -> None:
+    assert _valor_de_p(build_scan_command("10.0.0.11", ports=(80, 80, 22))) == "22,80"
+
+
+def test_comando_de_escaneo_sin_puertos_no_anade_p() -> None:
+    assert "-p" not in build_scan_command("10.0.0.11", ports=None)
+
+
+@pytest.mark.parametrize("puertos", [[], [0], [65536], [-1], [22, 70000]])
+def test_comando_de_escaneo_rechaza_puertos_no_validos(puertos: list[int]) -> None:
+    with pytest.raises(ValueError, match="ports"):
+        build_scan_command("10.0.0.11", ports=puertos)
+
+
+@pytest.mark.parametrize("puerto", [True, "22", "22,80", 22.0])
+def test_comando_de_escaneo_rechaza_puertos_que_no_son_enteros(puerto: object) -> None:
+    with pytest.raises(ValueError, match="ports"):
+        build_scan_command("10.0.0.11", ports=[puerto])  # type: ignore[list-item]
+
+
+def test_profile_tcp_ports_devuelve_solo_tcp_ordenados_y_sin_duplicados() -> None:
+    perfil = HostProfile(
+        host_id="victima-02",
+        address=IPv4Address("10.0.0.11"),
+        os_family=OsFamily.LINUX,
+        os_name="Debian GNU/Linux 13 (trixie)",
+        services=[
+            ServiceInfo(port=6379, protocol="tcp", name="redis"),
+            ServiceInfo(port=22, protocol="tcp", name="ssh"),
+            ServiceInfo(port=22, protocol="tcp", name="ssh"),
+            ServiceInfo(port=123, protocol="udp", name="ntp"),
+            ServiceInfo(port=21, protocol="tcp", name="ftp"),
+        ],
+    )
+    assert profile_tcp_ports(perfil) == (21, 22, 6379)
+
+
+PERFIL_SS = HostProfile(
+    host_id="victima-02",
+    address=IPv4Address("10.0.0.11"),
+    os_family=OsFamily.LINUX,
+    os_name="Debian GNU/Linux 13 (trixie)",
+    services=[
+        ServiceInfo(port=21, protocol="tcp", name="unknown"),
+        ServiceInfo(port=22, protocol="tcp", name="unknown"),
+        ServiceInfo(port=6379, protocol="tcp", name="unknown"),
+    ],
+    top_level_dirs=["/etc", "/home"],
+)
+
+HUELLA_NMAP = Fingerprint(
+    address=IPv4Address("10.0.0.11"),
+    os_matches=[OsMatch(name="Linux 5.4 - 5.10", accuracy=94, os_family="Linux")],
+    services=[
+        ServiceInfo(
+            port=21,
+            protocol="tcp",
+            name="ftp",
+            banner="220 (vsFTPd 3.0.5)",
+            product="vsftpd",
+            version="3.0.5",
+        ),
+        ServiceInfo(
+            port=22,
+            protocol="tcp",
+            name="ssh",
+            banner="SSH-2.0-OpenSSH_10.0p2 Debian-7+deb13u4",
+            product="OpenSSH",
+        ),
+        ServiceInfo(port=8080, protocol="tcp", name="http-proxy"),
+    ],
+)
+
+
+def test_enrich_profile_copia_los_datos_de_nmap_de_los_puertos_del_perfil() -> None:
+    enriquecido = enrich_profile(PERFIL_SS, HUELLA_NMAP)
+    por_puerto = {s.port: s for s in enriquecido.services}
+    assert por_puerto[21] == HUELLA_NMAP.services[0]
+    assert por_puerto[22].name == "ssh"
+    assert por_puerto[22].banner == "SSH-2.0-OpenSSH_10.0p2 Debian-7+deb13u4"
+
+
+def test_enrich_profile_conserva_los_puertos_del_perfil_que_nmap_no_vio() -> None:
+    enriquecido = enrich_profile(PERFIL_SS, HUELLA_NMAP)
+    assert [s.port for s in enriquecido.services] == [21, 22, 6379]
+    assert enriquecido.services[2].name == "unknown"
+
+
+def test_enrich_profile_ignora_puertos_que_solo_ve_nmap() -> None:
+    # El perfil por SSH (ss) decide qué escucha el host; nmap solo aporta detalle.
+    assert 8080 not in {s.port for s in enrich_profile(PERFIL_SS, HUELLA_NMAP).services}
+
+
+def test_enrich_profile_no_toca_el_resto_del_perfil() -> None:
+    enriquecido = enrich_profile(PERFIL_SS, HUELLA_NMAP)
+    assert enriquecido.model_dump(exclude={"services"}) == PERFIL_SS.model_dump(
+        exclude={"services"}
+    )
+
+
+def test_enrich_profile_no_cruza_puertos_tcp_con_udp() -> None:
+    huella = HUELLA_NMAP.model_copy(
+        update={"services": [ServiceInfo(port=21, protocol="udp", name="ftp-udp")]}
+    )
+    assert enrich_profile(PERFIL_SS, huella).services[0].name == "unknown"
+
+
+def test_enrich_profile_rechaza_la_huella_de_otro_host() -> None:
+    otra = HUELLA_NMAP.model_copy(update={"address": IPv4Address("10.0.0.10")})
+    with pytest.raises(ValueError, match=r"10\.0\.0\.10"):
+        enrich_profile(PERFIL_SS, otra)
+
+
+def test_profile_tcp_ports_de_un_perfil_sin_servicios_tcp_es_vacio() -> None:
+    perfil = HostProfile(
+        host_id="victima-02",
+        address=IPv4Address("10.0.0.11"),
+        os_family=OsFamily.LINUX,
+        os_name="Debian",
+    )
+    assert profile_tcp_ports(perfil) == ()
+
+
 def test_comando_de_barrido() -> None:
     assert build_ping_sweep_command("10.0.0.0/24") == ("nmap", "-sn", "-oX", "-", "10.0.0.0/24")
 
@@ -224,3 +389,128 @@ def test_comando_de_barrido() -> None:
 def test_comando_de_barrido_rechaza_redes_no_validas(red: str) -> None:
     with pytest.raises(ValueError, match="network"):
         build_ping_sweep_command(red)
+
+
+# --- ProcessRunner / AsyncNmapRunner / scan_host (L2) -----------------------
+
+
+class FakeProcessRunner:
+    """Doble de `ProcessRunner`: registra el comando recibido y devuelve salida fija."""
+
+    def __init__(self, stdout: str = "", *, error: Exception | None = None) -> None:
+        self.calls: list[tuple[str, ...]] = []
+        self._stdout = stdout
+        self._error = error
+
+    async def run(self, argv: Sequence[str]) -> str:
+        self.calls.append(tuple(argv))
+        if self._error is not None:
+            raise self._error
+        return self._stdout
+
+
+def test_fake_process_runner_satisface_el_protocolo() -> None:
+    assert isinstance(FakeProcessRunner(), ProcessRunner)
+
+
+async def test_scan_host_construye_el_comando_y_lo_ejecuta() -> None:
+    runner = FakeProcessRunner(stdout=fixture("sv_o_victima01.xml"))
+    await scan_host(IPv4Address("10.0.0.10"), runner)
+    assert runner.calls == [build_scan_command("10.0.0.10")]
+
+
+async def test_scan_host_con_puertos_los_pasa_al_comando() -> None:
+    runner = FakeProcessRunner(stdout=fixture("sv_o_victima01.xml"))
+    await scan_host(IPv4Address("10.0.0.10"), runner, ports=[3306, 22, 80])
+    assert runner.calls == [build_scan_command("10.0.0.10", ports=[22, 80, 3306])]
+
+
+async def test_scan_host_con_puertos_no_validos_falla_antes_de_lanzar_nmap() -> None:
+    runner = FakeProcessRunner(stdout=fixture("sv_o_victima01.xml"))
+    with pytest.raises(ValueError, match="ports"):
+        await scan_host(IPv4Address("10.0.0.10"), runner, ports=[])
+    assert runner.calls == []
+
+
+async def test_scan_host_devuelve_la_huella_de_la_direccion_pedida() -> None:
+    runner = FakeProcessRunner(stdout=fixture("sv_o_victima01.xml"))
+    huella = await scan_host(IPv4Address("10.0.0.10"), runner)
+    assert huella == parse_nmap_xml(fixture("sv_o_victima01.xml"))[0]
+
+
+async def test_scan_host_falla_si_la_direccion_no_aparece_en_la_salida() -> None:
+    runner = FakeProcessRunner(stdout=fixture("sv_o_victima01.xml"))
+    with pytest.raises(NmapScanError, match=r"10\.0\.0\.99"):
+        await scan_host(IPv4Address("10.0.0.99"), runner)
+
+
+async def test_scan_host_propaga_el_fallo_del_runner_como_nmapscanerror() -> None:
+    runner = FakeProcessRunner(error=RuntimeError("nmap: comando no encontrado"))
+    with pytest.raises(NmapScanError, match="comando no encontrado"):
+        await scan_host(IPv4Address("10.0.0.10"), runner)
+
+
+async def test_scan_host_propaga_un_nmapscanerror_del_runner_sin_envolverlo_dos_veces() -> None:
+    runner = FakeProcessRunner(error=NmapScanError("nmap terminó con código 1: host abajo"))
+    with pytest.raises(NmapScanError, match="host abajo"):
+        await scan_host(IPv4Address("10.0.0.10"), runner)
+
+
+async def test_scan_host_falla_con_xml_no_interpretable() -> None:
+    runner = FakeProcessRunner(stdout="esto no es XML de nmap")
+    with pytest.raises(NmapScanError):
+        await scan_host(IPv4Address("10.0.0.10"), runner)
+
+
+class _FakeProcess:
+    """Doble de `asyncio.subprocess.Process`: salida y código de salida fijos."""
+
+    def __init__(self, stdout: bytes, stderr: bytes, returncode: int) -> None:
+        self._stdout = stdout
+        self._stderr = stderr
+        self.returncode = returncode
+
+    async def communicate(self) -> tuple[bytes, bytes]:
+        return self._stdout, self._stderr
+
+
+def test_async_nmap_runner_satisface_el_protocolo() -> None:
+    assert isinstance(AsyncNmapRunner(), ProcessRunner)
+
+
+async def test_async_nmap_runner_ejecuta_sin_shell_y_devuelve_el_stdout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    llamadas: list[tuple[str, ...]] = []
+
+    async def fake_exec(*argv: str, **kwargs: object) -> _FakeProcess:
+        llamadas.append(argv)
+        return _FakeProcess(stdout=b"salida XML\n", stderr=b"", returncode=0)
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+    resultado = await AsyncNmapRunner().run(("nmap", "-sV", "-O", "-oX", "-", "10.0.0.10"))
+    assert resultado == "salida XML\n"
+    assert llamadas == [("nmap", "-sV", "-O", "-oX", "-", "10.0.0.10")]
+
+
+async def test_async_nmap_runner_falla_con_codigo_de_salida_distinto_de_cero(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_exec(*argv: str, **kwargs: object) -> _FakeProcess:
+        return _FakeProcess(stdout=b"", stderr=b"nmap: host inalcanzable\n", returncode=1)
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+    with pytest.raises(NmapScanError, match="host inalcanzable"):
+        await AsyncNmapRunner().run(("nmap", "-sV", "-O", "-oX", "-", "10.0.0.99"))
+
+
+async def test_async_nmap_runner_sanea_el_stderr_del_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_exec(*argv: str, **kwargs: object) -> _FakeProcess:
+        return _FakeProcess(stdout=b"", stderr=b"error\x07con\x07control", returncode=1)
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+    with pytest.raises(NmapScanError) as excinfo:
+        await AsyncNmapRunner().run(("nmap",))
+    assert "\x07" not in str(excinfo.value)

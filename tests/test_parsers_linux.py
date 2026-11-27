@@ -7,10 +7,12 @@ import pytest
 
 from securization.modelos import ServiceInfo
 from securization.parsers_linux import (
+    DPKG_CMD,
     LS_ROOT_CMD,
     OS_RELEASE_CMD,
     SS_CMD,
     ParseError,
+    parse_dpkg_query,
     parse_os_release,
     parse_ss_listening,
     parse_top_level_dirs,
@@ -189,3 +191,30 @@ def test_to_command_line_escapa_metacaracteres() -> None:
     linea = to_command_line(argv)
     assert tuple(shlex.split(linea)) == argv
     assert "'a; rm -rf /'" in linea  # entrecomillado como un único argumento
+
+
+# --- dpkg-query: versiones de los paquetes de servicio (H4) -----------------------
+
+
+def test_comando_dpkg_es_fijo_y_no_pasa_por_un_shell_remoto() -> None:
+    assert DPKG_CMD == ("dpkg-query", "-W", r"-f=${Package}\t${Version}\n")
+    # shlex.join entrecomilla el formato: el shell remoto no expande ${Package}.
+    assert "'-f=${Package}" in to_command_line(DPKG_CMD)
+
+
+def test_parse_dpkg_query_solo_guarda_paquetes_de_servicio() -> None:
+    paquetes = parse_dpkg_query(fixture("dpkg_query_victima01.txt"))
+    assert paquetes == {
+        "mariadb-server": "1:11.8.9+ds-0+deb13u1",
+        "nginx": "1.26.3-3+deb13u11",
+        "openssh-server": "1:10.0p1-7+deb13u4",
+    }
+
+
+def test_parse_dpkg_query_ignora_lineas_mal_formadas_y_versiones_raras() -> None:
+    texto = "nginx\n\nvsftpd\t3.0.5-0+deb13u1\nredis-server\t7.0; rm -rf /\nopenssh-server\t\n"
+    assert parse_dpkg_query(texto) == {"vsftpd": "3.0.5-0+deb13u1"}
+
+
+def test_parse_dpkg_query_vacio_es_un_dict_vacio() -> None:
+    assert parse_dpkg_query("") == {}

@@ -59,7 +59,8 @@ Riesgo conocido para Windows (no resolver ahora): los deception hosts corren en 
 - Los datos del perfil que van al LLM se tratan como no confiables (prompt injection indirecta): viajan como JSON en campo delimitado, truncados y sin caracteres de control. El modelo no tiene herramientas.
 - Al LLM nunca se envia: contenido de ficheros reales, credenciales reales, nombres de usuarios reales ni datos personales. IPs y dominios internos se seudonimizan antes de enviar.
 - Los banners de los senuelos se copian de hosts reales, no los inventa el modelo.
-- Ningun senuelo se despliega sin superar el umbral de plausibilidad y sin aprobacion manual del operador (modo simulacion primero).
+- Ningun senuelo se despliega sin superar el umbral de plausibilidad y sin aprobacion manual del operador (modo simulacion primero). El despliegue definitivo es `deploy_decoy`, que exige el plan aprobado.
+- Unica excepcion, solo en el laboratorio aislado: `start_decoy` puede arrancar un senuelo sin aprobacion para que el bucle de verificacion lo escanee (no se puede puntuar un senuelo apagado). Fuera del laboratorio, siempre `deploy_decoy`.
 - Tipado completo (mypy) y async donde haya E/S de red.
 
 ## Flujo de trabajo
@@ -71,9 +72,9 @@ Riesgo conocido para Windows (no resolver ahora): los deception hosts corren en 
 6. Pull request con squash merge a main referenciando el issue.
 
 ## Trazabilidad del uso de IA
-- Cada commit con codigo generado lleva el trailer `AI-Assisted: Claude Code`.
+- Los commits y las descripciones de PR no llevan ninguna marca de IA (ni `AI-Assisted`, ni `Co-Authored-By`, ni "Generated with"). La trazabilidad del uso de IA vive solo en AI_USAGE.md.
 - Por cada tarea, anadir una entrada en AI_USAGE.md: fecha, herramienta, resumen del prompt, que se genero, que se modifico a mano y commit asociado.
-- El usuario ha pedido que Claude no aparezca en el GitHub publico del proyecto: ningun commit lleva `Co-Authored-By` y ningun PR lleva pie de "Generated with Claude Code". El trailer `AI-Assisted: Claude Code` se mantiene porque lo exige este documento y la memoria de la asignatura.
+- El usuario ha pedido explicitamente que Claude no aparezca en el GitHub publico del proyecto; por eso ningun commit ni PR lleva atribucion de IA.
 
 ## Hitos
 - H0 Laboratorio (VirtualBox, red interna labnet: deception-central 10.0.0.5, victima-01 10.0.0.10, victima-02 10.0.0.11, kali-lab 10.0.0.20)
@@ -87,9 +88,9 @@ Riesgo conocido para Windows (no resolver ahora): los deception hosts corren en 
 - Opcional, solo si sobra tiempo tras H4 y el profesor lo aprueba: soporte Windows (WindowsProfiler, catalogo de breadcrumbs y backend de contencion)
 
 ## Estado actual
-Desarrollo repartido entre un portatil y la torre del laboratorio; el agente no tiene acceso remoto a ninguno de los dos ni a las VMs, asi que el usuario ejecuta a mano cualquier comando contra el laboratorio. Las sesiones S0-S7 (esqueleto, modelos, inventario, parsers, nmap, perfilado SSH orquestado, breadcrumbs, verificador) estan fusionadas en `main`. En curso: S6 (generador determinista, PR #12, bloqueado solo por falta de aprobacion de merge, CI en verde) y S8 (capa de LLM, PR #13 en borrador, solo tests, pendiente de aprobacion antes de implementar). Ver docs/PLAN.md para el resto de sesiones y su estado.
+Desarrollo y laboratorio (VirtualBox, red interna labnet) ya en la torre. El agente tiene permiso explicito del usuario para conectarse por SSH a las VMs del laboratorio y gestionarlas (VBoxManage, aprovisionamiento, diagnostico) directamente desde esta maquina.
 
-Al retomar en una maquina nueva (torre o portatil): `git fetch origin`, revisar `gh pr list --state open` para ver los PR pendientes, y crear el entorno con Python 3.12 (`python -m venv .venv` + `pip install -e ".[dev]"`); el repo fija `requires-python = ">=3.12,<3.13"`.
+MVP completo (S0-S13, L1-L6, H0-H6) validado en el laboratorio real: inventario, perfilado, generador con IA (Ollama) y respaldo determinista, verificador y bucle de ajuste, despliegue, eventos, respuesta, CLI, dashboard y autodespliegue con Docker Compose. Entrega final (README como manual, memoria en Word, ensayo de la demo) tambien fusionada. Ver docs/PLAN.md y AI_USAGE.md para el detalle sesion a sesion.
 
 ## Idioma
 Codigo, identificadores y commits en ingles; docstrings y documentacion en espanol.

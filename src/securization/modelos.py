@@ -57,6 +57,17 @@ class PlausibilityReport(_Modelo):
     differences: list[str] = Field(default_factory=list)
 
 
+class GenerationQuality(StrEnum):
+    """Procedencia de un contenido generado: del LLM o de la plantilla de respaldo.
+
+    CLAUDE.md: si la salida del LLM no valida contra su esquema, se usa la plantilla de
+    respaldo y se marca como de menor calidad. Compartido por los tres usos de IA (S8).
+    """
+
+    AI = "ia"
+    FALLBACK = "respaldo"
+
+
 class HostProfile(_Modelo):
     """Perfil de un host registrado: SO, servicios, directorios e IPs libres."""
 
@@ -67,3 +78,6 @@ class HostProfile(_Modelo):
     services: list[ServiceInfo] = Field(default_factory=list)
     top_level_dirs: list[str] = Field(default_factory=list)
     free_ips: list[IPv4Address] = Field(default_factory=list)
+    # Versión instalada de los paquetes de servicio (p. ej. MariaDB, que no la muestra por
+    # red al rechazar al escáner). Vacío si el SO no permite consultarla.
+    packages: dict[str, str] = Field(default_factory=dict)

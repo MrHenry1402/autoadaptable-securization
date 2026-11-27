@@ -16,12 +16,32 @@ from securization.parsing import ParseError, has_control_chars, sanitize_text
 OS_RELEASE_CMD: tuple[str, ...] = ("cat", "/etc/os-release")
 SS_CMD: tuple[str, ...] = ("ss", "-tlnp")
 LS_ROOT_CMD: tuple[str, ...] = ("ls", "-1Ap", "/")
+# dpkg-query interpreta \t y \n del formato; shlex.join lo entrecomilla para el shell remoto.
+DPKG_CMD: tuple[str, ...] = ("dpkg-query", "-W", r"-f=${Package}\t${Version}\n")
+
+# Paquetes de servicio cuya versión exacta sirve para que el señuelo anuncie la misma (H4).
+SERVICE_PACKAGES: frozenset[str] = frozenset(
+    {
+        "apache2",
+        "mariadb-server",
+        "mysql-server",
+        "nginx",
+        "openssh-server",
+        "postgresql",
+        "redis-server",
+        "vsftpd",
+    }
+)
+_DEBIAN_VERSION_RE = re.compile(r"[0-9][A-Za-z0-9.+~:-]{0,63}")
 
 __all__ = [
+    "DPKG_CMD",
     "LS_ROOT_CMD",
     "OS_RELEASE_CMD",
+    "SERVICE_PACKAGES",
     "SS_CMD",
     "ParseError",
+    "parse_dpkg_query",
     "parse_os_release",
     "parse_ss_listening",
     "parse_top_level_dirs",
@@ -37,6 +57,20 @@ _PROCESS_RE = re.compile(r'users:\(\("([^"]*)"')
 def to_command_line(argv: Sequence[str]) -> str:
     """Convierte una lista de argumentos en la línea que pide asyncssh, escapando cada uno."""
     return shlex.join(argv)
+
+
+def parse_dpkg_query(text: str) -> dict[str, str]:
+    """Versión instalada de los paquetes de servicio, a partir de `DPKG_CMD`.
+
+    Solo guarda los de `SERVICE_PACKAGES` y con una versión con forma de versión Debian;
+    cualquier otra línea se ignora (la salida del host no es confiable).
+    """
+    paquetes: dict[str, str] = {}
+    for linea in text.splitlines():
+        nombre, sep, version = linea.partition("\t")
+        if sep and nombre in SERVICE_PACKAGES and _DEBIAN_VERSION_RE.fullmatch(version):
+            paquetes[nombre] = version
+    return paquetes
 
 
 def parse_os_release(text: str) -> str:

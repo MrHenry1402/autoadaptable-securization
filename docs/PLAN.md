@@ -33,32 +33,128 @@ Fuera del MVP: Cowrie, Windows, Scapy, comparación de modelos y la API de Anthr
 - [x] S5 `BreadcrumbCatalog` Linux: plantillas deterministas (.env, backup.sql,
       .bash_history, claves), lista blanca de rutas, sin permisos de ejecución, límite de
       tamaño y comprobación de colisiones contra el inventario
-- [ ] S6 Generador determinista (H2): modelo `Campaign` y configuración de OpenCanary
+- [x] S6 Generador determinista (H2): modelo `Campaign` y configuración de OpenCanary
       desde el perfil, con banners copiados del host real
 - [x] S7 Verificador (H4, parte pura): comparador de huellas, puntuación y umbral
-- [ ] S8 Capa de LLM (H3): interfaz `LlmClient`, saneado del perfil (JSON delimitado,
+- [x] S8 Capa de LLM (H3): interfaz `LlmClient`, saneado del perfil (JSON delimitado,
       truncado, sin caracteres de control), seudonimización de IPs y dominios, validación
       con Pydantic estricto y plantilla de respaldo marcada como menor calidad. Cliente
       falso en tests
-- [ ] S9 Plan de despliegue en modo simulación y aprobación manual del operador
+- [x] S9 Plan de despliegue en modo simulación y aprobación manual del operador
       (`DeploymentPlan`); nunca sobrescribe ficheros; sin aprobación no se despliega
-- [ ] S10 Eventos: parser de logs de OpenCanary, accesos a breadcrumbs y correlación por
+- [x] S10 Eventos: parser de logs de OpenCanary, accesos a breadcrumbs y correlación por
       campaña
-- [ ] S11 Respuesta: modos observación, contención y escalado; reglas de nftables como
+- [x] S11 Respuesta: modos observación, contención y escalado; reglas de nftables como
       lista de argumentos (revisión línea a línea)
-- [ ] S12 CLI del orquestador que une todo en modo simulación, y bucle de ajuste con el
-      asistente (H4)
-- [ ] S13 Dashboard mínimo (FastAPI, Jinja2, HTMX): inventario, campañas, puntuaciones,
-      eventos y aprobación
+- [x] S12 CLI del orquestador que une todo en modo simulación, y bucle de ajuste con el
+      asistente (H4) — núcleo de orquestación hecho y probado (`run_campaign_simulation`);
+      falta el `main()` de línea de comandos de verdad, aparcado hasta que también exista
+      la ejecución real de nmap (fuera de lo descrito para S12). El bucle cerrado real es
+      `run_verification_loop` (H4, abajo)
+- [x] H4 Bucle cerrado de verificación con el laboratorio (2026-11-23):
+      - Verificador comparable con escaneos reales: dos escaneos del mismo host dan 100.
+        Normaliza el saludo de MySQL (salt aleatorio), compara producto, versión y
+        extrainfo, y marca el SO como distinguible si un banner delata otra distribución.
+      - El perfilador guarda la versión de los paquetes de servicio (`dpkg-query`).
+      - `adjust_decoy` (determinista, solo con datos observados del host real y sin cambiar
+        los módulos activos, de los que dependen los breadcrumbs de L4).
+      - `run_verification_loop`: arranca, escanea, puntúa y ajusta; para al aprobar, sin
+        ajuste, con config repetido o por intentos.
+      - Resultado real, H2 → H4: web-01 50 → 90 en el segundo intento (`mysql.banner`
+        pasa de `5.5.43-0ubuntu0.14.04.1` a `5.5.5-11.8.9-MariaDB-0+deb13u1`, desde el
+        paquete real); files-02 90 a la primera.
+      - Con este verificador, el "90/90" de L3 era optimista: web-01 era 50 (H2).
+      - Sin mando en OpenCanary, quedan como hallazgos: el rechazo `unauthorized` de
+        MariaDB (incluye la IP del escáner), Redis en modo protegido, la página HTTP (solo
+        hay los skins `basicLogin` y `nasLogin`) y MySQL 8, que OpenCanary no puede
+        anunciar (exige 3.x-6.x en `mysql.banner` y si no tumba el módulo en silencio)
+- [x] S13 Dashboard mínimo (FastAPI, Jinja2, HTMX): inventario, campañas, puntuaciones,
+      eventos y aprobación — `CampaignStore`/`DeploymentPlanStore` (persistencia en SQLite,
+      mismo patrón que `HostProfileStore`), `DeploymentPlan.differences` (motivo de la
+      puntuación), rutas `/`, `/hosts`, `/hosts/{id}`, `/campaigns`, `/campaigns/{id}`,
+      `POST /campaigns/{id}/approve` (usa `approve_plan`, respeta el umbral) y `/events`
+      como aviso honesto (sin datos simulados; pendiente de L3). Probado con
+      `TestClient` y arrancado de verdad con `uvicorn` contra el navegador.
 
 ## Sesiones con laboratorio (las valida el usuario en VirtualBox)
 
-- [ ] L1 `AsyncSshTransport` (asyncssh) contra victima-01 y victima-02; perfiles reales
-- [ ] L2 Ejecución real de nmap y comparación del señuelo con un host real
-- [ ] L3 Contenedores OpenCanary con macvlan en deception-central
-- [ ] L4 Plantado real de breadcrumbs por SFTP y alertas de extremo a extremo
-- [ ] L5 Ollama: modelo local y tasa de salidas válidas
-- [ ] L6 Docker Compose de autodespliegue y pruebas ofensivas desde Kali (H7)
+- [x] L1 `AsyncSshTransport` (asyncssh) contra victima-01 y victima-02; perfiles reales
+      (validado el 2026-11-23 con `lab/profile_lab.py` contra las dos víctimas, con las
+      credenciales del inventario cifrado; los campos de nmap —banner, versión, IPs
+      libres— quedan vacíos hasta integrar L2)
+- [x] L2 Ejecución real de nmap y comparación del señuelo con un host real
+      (`AsyncNmapRunner`/`scan_host` validados el 2026-11-23 con Nmap 7.993 + Npcap en la
+      torre, sin elevación, `-O` incluido. El escaneo cubre los puertos del perfil
+      (`ports`/`profile_tcp_ports`: sin `-p` nmap no veía Redis 6379) y lanza los
+      scripts `banner` y `http-server-header`: sin ellos todos los banners eran `None` y
+      el verificador no detectaba ninguna diferencia. Comparación real con los señuelos
+      de L3: 90/90 en ambas víctimas, con diferencias reales detectadas)
+- [x] L3 Contenedores OpenCanary con macvlan en deception-central
+      (`start_decoy`/`deploy_decoy` en `desplegador.py`, imagen oficial fijada por
+      digest, MAC con OUI de VirtualBox, config completo con `render_opencanary_conf`
+      sobre el config por defecto real de OpenCanary 0.9.10. Validado el 2026-11-23:
+      perfil → `enrich_profile` con nmap → `build_campaign` → `start_decoy` → escaneo →
+      `verify_decoy`. Hallazgos de la línea base H2 para H4: el saludo de MySQL del
+      señuelo revela `5.5.43-0ubuntu0.14.04.1` y Redis no imita el modo protegido;
+      ambos pasan justo en el umbral (90), así que el verificador pesa poco un banner
+      que delata el SO. El 90 de web-01 está además inflado en HTTP: el real responde
+      `200` con su página "Intranet" y el señuelo `302` a un login de NAS Synology
+      (`http.skin: nasLogin`), pero nmap solo ve `nginx` en ambos y el verificador lo
+      cuenta como coincidencia. El banner real de MariaDB incluye la IP del escáner
+      (`Host '10.0.0.1' is not allowed`), así que ningún señuelo podrá igualarlo; y ese
+      texto queda en el perfil guardado, así que antes de L5 hay que comprobar que
+      `build_profile_payload` seudonimiza también las IPs que van dentro de los banners.
+      Reproducible con `lab/e2e_l3.py` en la rama chore/h0-laboratorio-virtualbox)
+- [x] L4 Plantado real de breadcrumbs por SFTP y alertas de extremo a extremo
+      (validado el 2026-11-23. Los breadcrumbs se generan desde el `DecoyConfig`: solo
+      llevan a servicios activos del señuelo, con credenciales propias de la campaña, y
+      se plantan en el home del usuario de gestión, sin pisar ficheros existentes. Con
+      los planes aprobados a mano se plantaron 7 en las dos víctimas; desde cada víctima
+      se usaron sus credenciales contra el señuelo y las alertas reales se atribuyeron a
+      su campaña y a su breadcrumb con `breadcrumb_service_used`: MySQL (8001), HTTP
+      (3001), FTP (2000) y Redis (17001). Hallazgos: `redis-cli -u redis://...`, la forma
+      natural de usar `REDIS_URL`, rompe el parser de OpenCanary y no deja la credencial;
+      MySQL solo se atribuye por usuario, porque la clave llega cifrada. Fuera de alcance:
+      detectar la mera lectura de un breadcrumb (requeriría auditd, es decir, modificar
+      el host real))
+- [x] L5 Ollama: modelo local y tasa de salidas válidas (2026-11-23):
+      - `OllamaClient`: solo un Ollama local, `format: json` y `think: false`; los
+        fallos pasan a `LlmError` y de ahí a la plantilla de respaldo.
+      - Antes de usar el modelo real, dos huecos de privacidad y validez cerrados:
+        `build_profile_payload` seudonimiza también las IPs dentro de los banners (el
+        MariaDB real incluye la IP del escáner), y el hostname debe ser una etiqueta DNS
+        válida que no copie el del host real.
+      - Medición con los perfiles reales (Ollama 0.40, RTX 4070 SUPER, 25 semillas por
+        víctima). Primera pasada: 100 % de JSON válido en `qwen3:8b` y `qwen3:14b`, pero
+        `qwen3:8b` proponía `victima-01-deco` en 24 de 25 casos. Era válido como
+        hostname e inútil como señuelo, y la plantilla de respaldo (`<host>-decoy`) tenía
+        el mismo problema. Que valide el esquema no basta.
+      - Tras rechazar nombres con palabras delatoras, pedirlo en el prompt y cambiar el
+        respaldo a `<host>-bak`: 100 % de salidas válidas en ambos modelos, con nombres
+        plausibles (`db-server-01`, `servidor-datos-02`, `servidor-app-03`…).
+        Latencias de 0,25-0,3 s (8b) y 0,4-0,5 s (14b).
+      - `qwen3:14b` da nombres algo más variados; `qwen3:8b` a veces no encaja con los
+        servicios (`db-server-02` para un servidor FTP/Redis).
+      - Reproducible con `lab/l5_tasa_validas.py`
+- [x] L6 Docker Compose de autodespliegue y pruebas ofensivas desde Kali (H7), 2026-11-23:
+      - **H6, herramienta usable de punta a punta**: CLI `securization` (hosts, profile,
+        name, campaign, approve, deploy, events, dashboard); recogida de las alertas reales
+        de los señuelos (`EventStore`, sin duplicados) y dashboard con eventos por campaña
+        y los intentos del bucle H4; `Dockerfile` (sin root, sin datos ni secretos) y
+        `docker-compose.yml` (dashboard, y Ollama con el perfil `llm`). Validado: imagen
+        construida y dashboard servido por `docker compose up -d` en deception-central.
+      - **H7, vista del atacante desde Kali** (`lab/l6_ofensiva.py`, nmap -sV -O sobre
+        1-1024 y servicios habituales): web-01 H2 = 50 (delata Ubuntu) → H4 = 90; files-02
+        90 → 90. Coincide con lo medido desde la torre.
+      - **Detección**: todo ataque contra un servicio del señuelo genera alertas atribuidas
+        a su campaña: hydra 5/5 intentos SSH (web-01) y 5/5 FTP (files-02), sondas de nmap
+        a SSH y Redis, el GET de whatweb.
+      - **Hallazgos**: whatweb identifica web-01 como "Synology RackStation" frente a la
+        "Intranet" real, algo que nmap no ve (el verificador debería añadir una sonda HTTP
+        de título). El barrido de puertos en sí no genera alerta, porque el módulo
+        `portscan` de OpenCanary está desactivado. Restaurar las VMs desde `savestate`
+        desfasa su reloj (14 h en deception-central); hay que forzar la hora antes de
+        comparar horas de eventos.
 
 ## Criterios de MVP terminado
 

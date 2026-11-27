@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "securization"
 version = "0.1.0"
 description = "Herramienta de deception autodesplegable y autoadaptable (U-Tad, Proyectos de Ciberseguridad)"
-readme = "CLAUDE.md"
+readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "asyncssh>=2.17",
@@ -16,11 +16,16 @@ dependencies = [
     "jinja2>=3.1",
     "pydantic>=2.9",
     "sqlmodel>=0.0.22",
+    "uvicorn>=0.30",
 ]
+
+[project.scripts]
+securization = "securization.cli:main"
 
 [project.optional-dependencies]
 dev = [
     "bandit>=1.7",
+    "httpx>=0.27",
     "mypy>=1.11",
     "pip-audit>=2.7",
     "pytest>=8.3",
@@ -55,6 +60,10 @@ select = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "S105", "S106"]
+
+[tool.ruff.lint.isort]
+# El paquete propio, aunque un módulo aún no exista en esta rama (los scripts de lab/).
+known-first-party = ["securization"]
 
 [tool.mypy]
 python_version = "3.12"
