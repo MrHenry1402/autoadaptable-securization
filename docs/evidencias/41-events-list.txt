@@ -1,0 +1,31 @@
+# 2026-11-27 18:59:12 UTC · 1 s · código de salida 0
+$ securization events list
+
+2026-11-27 18:58:53 campana-victima-02     files-02   10.0.0.20       :6379  17001  breadcrumb redis
+2026-11-27 18:58:17 campana-victima-02     files-02   10.0.0.20       :21    2000   
+2026-11-27 18:58:17 campana-victima-02     files-02   10.0.0.20       :21    2000   
+2026-11-27 18:58:17 campana-victima-02     files-02   10.0.0.20       :21    2000   
+2026-11-27 18:58:16 campana-victima-02     files-02   10.0.0.20       :21    2000   
+2026-11-27 18:58:16 campana-victima-02     files-02   10.0.0.20       :21    2000   
+2026-11-27 18:58:13 campana-victima-02     files-02   10.0.0.20       :6379  17001  
+2026-11-27 18:58:13 campana-victima-02     files-02   10.0.0.20       :6379  17001  
+2026-11-27 18:58:11 campana-victima-02     files-02   10.0.0.20       :21    2000   breadcrumb ftp
+2026-11-27 18:56:27 campana-victima-01     web-01     10.0.0.20       :80    3000   
+2026-11-27 18:55:55 campana-victima-01     web-01     10.0.0.20       :22    4002   
+2026-11-27 18:55:54 campana-victima-01     web-01     10.0.0.20       :22    4002   
+2026-11-27 18:55:54 campana-victima-01     web-01     10.0.0.20       :22    4002   
+2026-11-27 18:55:53 campana-victima-01     web-01     10.0.0.20       :22    4002   
+2026-11-27 18:55:53 campana-victima-01     web-01     10.0.0.20       :22    4002   
+2026-11-27 18:55:53 campana-victima-01     web-01     10.0.0.20       :22    4001   
+2026-11-27 18:55:53 campana-victima-01     web-01     10.0.0.20       :22    4001   
+2026-11-27 18:55:53 campana-victima-01     web-01     10.0.0.20       :22    4000   
+2026-11-27 18:55:53 campana-victima-01     web-01     10.0.0.20       :22    4000   
+2026-11-27 18:55:53 campana-victima-01     web-01     10.0.0.20       :22    4001   
+2026-11-27 18:55:53 campana-victima-01     web-01     10.0.0.20       :22    4000   
+2026-11-27 18:55:48 campana-victima-01     web-01     10.0.0.20       :80    3001   breadcrumb http
+2026-11-27 18:55:45 campana-victima-01     web-01     10.0.0.20       :3306  8001   breadcrumb mysql
+2026-11-27 18:49:40 campana-victima-01     web-01     10.0.0.20       :22    4000   
+2026-11-27 18:25:41 campana-victima-02     files-02   10.0.0.1        :6379  17001  
+2026-11-27 18:25:31 campana-victima-02     files-02   10.0.0.1        :22    4000   
+2026-11-27 18:25:28 campana-victima-02     files-02   10.0.0.1        :6379  17001  
+2026-11-27 18:25:23 campana-victima-02     files-02   10.0.0.1        :22    4000   

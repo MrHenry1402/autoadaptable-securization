@@ -1,0 +1,20 @@
+{% set clase = "en-curso" if t.estado == "en curso" else ("hecho" if t.estado == "hecho" else "error") %}
+<div class="trabajo {{ clase }}" id="trabajo-{{ t.id }}"
+     {% if t.estado == "en curso" %}hx-get="/trabajos/{{ t.id }}" hx-trigger="every 1s" hx-swap="outerHTML"{% endif %}>
+  <h3>{{ t.titulo }}</h3>
+  <div class="barra" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ t.porcentaje }}">
+    <div class="relleno" style="width: {{ t.porcentaje }}%"></div>
+  </div>
+  <div class="estado-linea">
+    <span>{% if t.estado == "en curso" %}<span class="girando"></span>{% elif t.estado == "hecho" %}✅ {% else %}❌ {% endif %}{{ t.mensaje }}</span>
+    <span class="pct">{{ t.porcentaje }} %</span>
+  </div>
+  {% if t.pasos %}
+  <ul class="hechos">
+    {% for p in t.pasos %}<li>{{ p }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+  {% if t.estado == "hecho" and t.enlace %}
+  <p style="margin:.8rem 0 0"><a class="boton secundario" href="{{ t.enlace }}">Ver el resultado →</a></p>
+  {% endif %}
+</div>

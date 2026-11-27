@@ -1,0 +1,15 @@
+# 2026-11-27 18:59:14 UTC · 1 s · código de salida 0
+$ python lab/evidencias/log_opencanary.py .
+
+== decoy-web-01: una línea por tipo de alerta (logtype)
+{"dst_host": "10.0.0.50", "dst_port": 22, "local_time": "2026-11-27 18:49:40.252844", "local_time_adjusted": "2026-11-27 18:49:40.252915", "logdata": {"SESSION": "0"}, "logtype": 4000, "node_id": "web-01", "src_host": "10.0.0.20", "src_port": 40102, "utc_time": "2026-11-27 18:49:40.252892"}
+{"dst_host": "10.0.0.50", "dst_port": 3306, "local_time": "2026-11-27 18:55:45.510660", "local_time_adjusted": "2026-11-27 18:55:45.510747", "logdata": {"PASSWORD": "b541020841dee0963cca0b893184eeee9267bfbd", "USERNAME": "app_svc"}, "logtype": 8001, "node_id": "web-01", "src_host": "10.0.0.20", "src_port": 47632, "utc_time": "2026-11-27 18:55:45.510711"}
+{"dst_host": "10.0.0.50", "dst_port": 80, "local_time": "2026-11-27 18:55:48.066235", "local_time_adjusted": "2026-11-27 18:55:48.066362", "logdata": {"HOSTNAME": "10.0.0.50", "PASSWORD": "7UkXE8Wpk2ybB3TR", "PATH": "/index.html", "SKIN": "nasLogin", "USERAGENT": "curl/8.19.0", "USERNAME": "intranet_admin"}, "logtype": 3001, "node_id": "web-01", "src_host": "10.0.0.20", "src_port": 60186, "utc_time": "2026-11-27 18:55:48.066307"}
+{"dst_host": "10.0.0.50", "dst_port": 22, "local_time": "2026-11-27 18:55:53.360202", "local_time_adjusted": "2026-11-27 18:55:53.360251", "logdata": {"LOCALVERSION": "SSH-2.0-OpenSSH_10.0p2 Debian-7+deb13u4", "REMOTEVERSION": "SSH-2.0-libssh_0.11.1"}, "logtype": 4001, "node_id": "web-01", "src_host": "10.0.0.20", "src_port": 35146, "utc_time": "2026-11-27 18:55:53.360227"}
+{"dst_host": "10.0.0.50", "dst_port": 22, "local_time": "2026-11-27 18:55:53.799611", "local_time_adjusted": "2026-11-27 18:55:53.799669", "logdata": {"LOCALVERSION": "SSH-2.0-OpenSSH_10.0p2 Debian-7+deb13u4", "PASSWORD": "123456", "REMOTEVERSION": "SSH-2.0-libssh_0.11.1", "USERNAME": "root"}, "logtype": 4002, "node_id": "web-01", "src_host": "10.0.0.20", "src_port": 35152, "utc_time": "2026-11-27 18:55:53.799641"}
+{"dst_host": "10.0.0.50", "dst_port": 80, "local_time": "2026-11-27 18:56:27.577650", "local_time_adjusted": "2026-11-27 18:56:27.577700", "logdata": {"HOSTNAME": "10.0.0.50", "PATH": "/index.html", "SKIN": "nasLogin", "USERAGENT": "WhatWeb/0.5.5"}, "logtype": 3000, "node_id": "web-01", "src_host": "10.0.0.20", "src_port": 38800, "utc_time": "2026-11-27 18:56:27.577681"}
+
+== decoy-files-02: una línea por tipo de alerta (logtype)
+{"dst_host": "10.0.0.51", "dst_port": 21, "local_time": "2026-11-27 18:58:11.177503", "local_time_adjusted": "2026-11-27 18:58:11.177555", "logdata": {"PASSWORD": "RMxYxHpJMbZ9HuwU", "USERNAME": "backup"}, "logtype": 2000, "node_id": "files-02", "src_host": "10.0.0.20", "src_port": 38720, "utc_time": "2026-11-27 18:58:11.177536"}
+{"dst_host": "10.0.0.51", "dst_port": 6379, "local_time": "2026-11-27 18:58:13.469932", "local_time_adjusted": "2026-11-27 18:58:13.469995", "logdata": {"ARGS": "default :ACnJK99axFDY2P8u", "CMD": "AUTH"}, "logtype": 17001, "node_id": "files-02", "src_host": "10.0.0.20", "src_port": 47424, "utc_time": "2026-11-27 18:58:13.469968"}
+

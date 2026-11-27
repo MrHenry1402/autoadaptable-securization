@@ -1,0 +1,7 @@
+# 2026-11-27 18:55:58 UTC · 41 s · desde kali (10.0.0.20)
+# Huella web del host real frente al señuelo
+$ whatweb --color=never -a 1 http://10.0.0.10/ http://10.0.0.50/
+
+http://10.0.0.50/ [302 Found] Country[RESERVED][ZZ], HTTPServer[nginx], IP[10.0.0.50], RedirectLocation[/index.html], Title[Redirect], nginx
+http://10.0.0.10/ [200 OK] Country[RESERVED][ZZ], HTML5, HTTPServer[nginx], IP[10.0.0.10], Title[Intranet], nginx
+http://10.0.0.50/index.html [200 OK] Country[RESERVED][ZZ], Frame, HTML5, HTTPServer[nginx], IP[10.0.0.50], PasswordField[password], Script, Synology-DiskStation, Title[Synology&nbsp;RackStation], X-UA-Compatible[IE=11], nginx

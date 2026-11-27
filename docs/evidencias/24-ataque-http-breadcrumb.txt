@@ -1,0 +1,5 @@
+# 2026-11-27 18:55:47 UTC · 3 s · desde kali (10.0.0.20)
+# Movimiento lateral: credencial de la intranet (~/.env) en el login web del señuelo
+$ curl -s -o /dev/null -w 'HTTP %{http_code}\n' -d 'username=intranet_admin&password=7UkXE8Wpk2ybB3TR' http://10.0.0.50/index.html
+
+HTTP 200

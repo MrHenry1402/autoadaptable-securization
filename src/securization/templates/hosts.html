@@ -1,22 +1,33 @@
 {% extends "base.html" %}
-{% block title %}securization - hosts{% endblock %}
+{% block title %}securization - equipos{% endblock %}
+{% block nav_equipos %}activo{% endblock %}
 {% block content %}
-<h1>Hosts registrados</h1>
+<h1>Equipos</h1>
+<p class="sub">Los equipos que la herramienta conoce. Solo se toca lo que está dado de alta aquí,
+  y nunca se cambia su configuración: solo se analizan y se les dejan ficheros cebo.</p>
 {% if hosts %}
-<table>
-  <thead><tr><th>host_id</th><th>dirección</th><th>SO</th><th>usuario SSH</th></tr></thead>
-  <tbody>
+<div id="zona-trabajo"></div>
+<div class="rejilla">
   {% for host in hosts %}
-    <tr>
-      <td><a href="/hosts/{{ host.host_id }}">{{ host.host_id }}</a></td>
-      <td>{{ host.address }}</td>
-      <td>{{ host.os_family }}</td>
-      <td>{{ host.ssh_user }}</td>
-    </tr>
+  <div class="tarjeta" style="margin:0">
+    <p style="margin:0;font-size:1.5rem">{% if host.host_id == host_senuelos %}🪤{% else %}🖥️{% endif %}</p>
+    <h3 style="margin:.2rem 0"><a href="/hosts/{{ host.host_id }}">{{ host.host_id }}</a></h3>
+    <p class="ayuda mono">{{ host.address }} · {{ host.os_family }}</p>
+    <p style="margin:.6rem 0">
+      {% if host.host_id == host_senuelos %}<span class="chip chip-gris">aloja las trampas</span>
+      {% elif host.host_id in perfilados %}<span class="chip chip-ok">analizado</span>
+      {% else %}<span class="chip chip-pendiente">sin analizar</span>{% endif %}
+    </p>
+    {% if acciones and host.host_id != host_senuelos %}
+    <form hx-post="/acciones/perfilar/{{ host.host_id }}" hx-target="#zona-trabajo" hx-swap="afterbegin">
+      <button class="boton secundario" type="submit">🔍 {% if host.host_id in perfilados %}Volver a analizar{% else %}Analizar{% endif %}</button>
+    </form>
+    {% endif %}
+  </div>
   {% endfor %}
-  </tbody>
-</table>
+</div>
 {% else %}
-<p>No hay hosts dados de alta todavía.</p>
+<p class="info">No hay hosts dados de alta todavía. Se añaden desde la terminal con
+  <code>securization hosts add NOMBRE IP --user USUARIO</code> (la contraseña se pide por teclado y se guarda cifrada).</p>
 {% endif %}
 {% endblock %}

@@ -1,65 +1,76 @@
 {% extends "base.html" %}
 {% block title %}securization - {{ plan.campaign_id }}{% endblock %}
+{% block nav_trampas %}activo{% endblock %}
 {% block content %}
-<h1>{{ plan.campaign_id }}</h1>
-<p><strong>Host real:</strong> <a href="/hosts/{{ plan.host_id }}">{{ plan.host_id }}</a></p>
-<p><strong>Puntuación de plausibilidad:</strong> {{ plan.plausibility_score }} / umbral {{ plan.plausibility_threshold }}</p>
+{% set s = estado_trampa(plan) %}
+<p><a href="/campaigns">← Trampas</a></p>
+<h1>🪤 {{ plan.campaign_id }}</h1>
+<p class="sub">Trampa que imita a <a href="/hosts/{{ plan.host_id }}">{{ plan.host_id }}</a>{% if campaign %}: aparece en la red como
+  <strong>{{ campaign.decoy.node_id }}</strong> en <span class="mono">{{ campaign.decoy.address }}</span>{% endif %}.</p>
 
-{% if error %}
-<p class="error">{{ error }}</p>
-{% endif %}
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+<div id="zona-trabajo"></div>
 
-{% if plan.ready_to_deploy %}
-<p class="badge badge-ok">Lista para desplegar</p>
-{% elif plan.approved %}
-<p class="badge badge-fail">Aprobada pero por debajo del umbral</p>
-{% else %}
-<form hx-post="/campaigns/{{ plan.campaign_id }}/approve" hx-target="main" hx-swap="innerHTML">
-  <button type="submit" {% if plan.plausibility_score < plan.plausibility_threshold %}disabled{% endif %}>
-    Aprobar despliegue
-  </button>
-</form>
+<div class="tarjeta">
+  <h2 style="margin-top:0">¿Se nota que es una trampa?</h2>
+  <div class="medidor"><div class="relleno" style="width:{{ plan.plausibility_score }}%;background:{% if plan.plausibility_score >= plan.plausibility_threshold %}var(--ok){% else %}var(--mal){% endif %}"></div>
+    <div class="umbral" style="left:{{ plan.plausibility_threshold }}%" title="umbral"></div></div>
+  <p><strong>Nota de parecido: {{ plan.plausibility_score }} / 100</strong> (Puntuación de plausibilidad; hace falta al menos {{ plan.plausibility_threshold }}).
+    <span class="chip chip-{{ s.clase }}">{{ s.texto }}</span></p>
+  <p class="ayuda">{{ s.explicacion }}</p>
+
+  {% if plan.deployed_at %}
+    <p class="exito">✅ Desplegada: la trampa está en la red y los {{ plan.actions|length }} ficheros cebo ya están en {{ plan.host_id }}. Cualquier contacto aparecerá en <a href="/events">Alertas</a>.</p>
+  {% elif plan.ready_to_deploy %}
+    <p class="exito">Lista para desplegar: la trampa supera el umbral y está aprobada.</p>
+    {% if acciones %}
+    <form hx-post="/acciones/desplegar/{{ plan.campaign_id }}" hx-target="#zona-trabajo" hx-swap="afterbegin">
+      <button class="boton peligro" type="submit">🚀 Desplegar en la red</button>
+      <p class="ayuda">Deja {{ plan.actions|length }} ficheros cebo en {{ plan.host_id }} y arranca la trampa definitiva. Nunca sobrescribe ficheros que ya existan.</p>
+    </form>
+    {% endif %}
+  {% elif plan.approved %}
+    <p class="error">Aprobada pero por debajo del umbral: no se desplegará.</p>
+  {% else %}
+  <form hx-post="/campaigns/{{ plan.campaign_id }}/approve" hx-target="main" hx-swap="innerHTML">
+    <button class="boton" type="submit" {% if plan.plausibility_score < plan.plausibility_threshold %}disabled{% endif %}>
+      ✔ Aprobar despliegue
+    </button>
+    <p class="ayuda">Tu aprobación es obligatoria: la herramienta nunca despliega una trampa por su cuenta.</p>
+  </form>
+  {% endif %}
+</div>
+
+{% if verification %}
+<div class="tarjeta">
+  <h2 style="margin-top:0">Bucle de verificación: cómo se ha ido corrigiendo</h2>
+  <p class="ayuda">En cada intento la trampa se arranca, se escanea igual que lo haría un atacante (nmap) y se compara con el equipo real. Si se nota la diferencia, se corrige con datos del equipo real y se vuelve a probar. Motivo de parada: <strong>{{ verification.stop_reason }}</strong>.</p>
+  {% for intento in verification.attempts %}
+  <div class="intento">
+    <p style="margin:.3rem 0"><strong>Intento {{ intento.attempt }}</strong> — nota {{ intento.report.score }} / {{ intento.report.threshold }}
+      {% if intento.report.score >= intento.report.threshold %}<span class="chip chip-ok">no se distingue</span>{% else %}<span class="chip chip-mal">se nota que es falsa</span>{% endif %}</p>
+    {% if intento.report.differences %}
+    <details><summary>Qué diferencias se veían ({{ intento.report.differences|length }})</summary>
+      <ul>{% for d in intento.report.differences %}<li class="mono">{{ d }}</li>{% endfor %}</ul>
+    </details>
+    {% else %}<p class="ayuda">Ninguna diferencia.</p>{% endif %}
+  </div>
+  {% endfor %}
+</div>
 {% endif %}
 
 {% if plan.differences %}
-<h2>Diferencias detectadas frente al host real</h2>
-<ul>
-  {% for diferencia in plan.differences %}
-  <li>{{ diferencia }}</li>
-  {% endfor %}
-</ul>
+<details class="tarjeta"><summary>Diferencias detectadas frente al host real (las que quedan)</summary>
+<ul>{% for diferencia in plan.differences %}<li class="mono">{{ diferencia }}</li>{% endfor %}</ul>
+</details>
 {% endif %}
 
-{% if verification %}
-<h2>Bucle de verificación</h2>
-<p>Motivo de parada: <strong>{{ verification.stop_reason }}</strong></p>
-<table>
-  <thead><tr><th>intento</th><th>puntuación</th><th>diferencias con el host real</th></tr></thead>
-  <tbody>
-  {% for intento in verification.attempts %}
-    <tr>
-      <td>{{ intento.attempt }}</td>
-      <td>{{ intento.report.score }} / {{ intento.report.threshold }}</td>
-      <td>{% for d in intento.report.differences %}{{ d }}<br>{% else %}ninguna{% endfor %}</td>
-    </tr>
-  {% endfor %}
-  </tbody>
-</table>
-{% endif %}
-
-<h2>Breadcrumbs planeados</h2>
-<table>
-  <thead><tr><th>ruta</th><th>permisos</th></tr></thead>
-  <tbody>
-  {% for accion in plan.actions %}
-    <tr><td>{{ accion.path }}</td><td>{{ "%o" | format(accion.mode) }}</td></tr>
-  {% endfor %}
-  </tbody>
-</table>
-
-{% if campaign %}
-<h2>Señuelo (deception host)</h2>
-<p><strong>node_id:</strong> {{ campaign.decoy.node_id }} &middot;
-   <strong>dirección:</strong> {{ campaign.decoy.address }}</p>
-{% endif %}
+<div class="tarjeta">
+  <h2 style="margin-top:0">Ficheros cebo {% if plan.deployed_at %}dejados{% else %}que se dejarán{% endif %} en {{ plan.host_id }}</h2>
+  <p class="ayuda">Contienen contraseñas falsas que solo llevan a la trampa. Si alguien las usa, sabremos que ha entrado en {{ plan.host_id }}.</p>
+  <table>
+    <thead><tr><th>Fichero</th><th>Permisos</th></tr></thead>
+    <tbody>{% for accion in plan.actions %}<tr><td class="mono">{{ accion.path }}</td><td class="mono">{{ "%o" | format(accion.mode) }}</td></tr>{% endfor %}</tbody>
+  </table>
+</div>
 {% endblock %}

@@ -1,0 +1,50 @@
+# 2026-11-27 18:22:04 UTC · 3 s · código de salida 0
+$ python lab/evidencias/lab_proof.py .
+
+== victima-01 (10.0.0.10)
+$ grep PRETTY_NAME /etc/os-release
+PRETTY_NAME="Debian GNU/Linux 13 (trixie)"
+
+$ systemctl is-active ssh nginx mariadb
+active
+active
+active
+
+$ ss -tlnH | awk '{print $4}' | sort -u
+0.0.0.0:22
+0.0.0.0:3306
+0.0.0.0:80
+[::]:22
+[::]:80
+
+== victima-02 (10.0.0.11)
+$ grep PRETTY_NAME /etc/os-release
+PRETTY_NAME="Debian GNU/Linux 13 (trixie)"
+
+$ systemctl is-active ssh vsftpd redis-server
+active
+active
+active
+
+$ ss -tlnH | awk '{print $4}' | sort -u
+0.0.0.0:22
+0.0.0.0:6379
+*:21
+[::]:22
+
+== deception-central (10.0.0.5)
+$ grep PRETTY_NAME /etc/os-release
+PRETTY_NAME="Debian GNU/Linux 13 (trixie)"
+
+$ docker --version
+Docker version 26.1.5+dfsg1, build a72d7cd
+
+$ docker network inspect labnet-decoys --format 'red {{.Name}}: driver {{.Driver}}, padre {{index .Options "parent"}}, subred {{(index .IPAM.Config 0).Subnet}}'
+red labnet-decoys: driver macvlan, padre enp0s8, subred 10.0.0.0/24
+
+$ ip -br link show enp0s8
+enp0s8           UP             08:00:27:28:e1:9b <BROADCAST,MULTICAST,PROMISC,UP,LOWER_UP>
+
+$ docker ps -a --format '{{.Names}}  {{.Image}}  {{.Status}}'
+securization-securization-1  securization:latest  Up 2 minutes
+

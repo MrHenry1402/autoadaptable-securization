@@ -1,0 +1,45 @@
+# 2026-11-27 19:19:13 UTC · 12 s · código de salida 0
+$ python -m pytest -q --cov --cov-report=term
+
+........................................................................ [ 11%]
+........................................................................ [ 22%]
+........................................................................ [ 33%]
+........................................................................ [ 44%]
+........................................................................ [ 55%]
+........................................................................ [ 66%]
+........................................................................ [ 77%]
+........................................................................ [ 88%]
+........................................................................ [ 99%]
+..                                                                       [100%]
+============================== warnings summary ===============================
+.venv\Lib\site-packages\fastapi\testclient.py:1
+  C:\Users\euqui\Desktop\autoadaptable-securization\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=============================== tests coverage ================================
+______________ coverage: platform win32, python 3.12.10-final-0 _______________
+
+Name                                Stmts   Miss Branch BrPart  Cover
+---------------------------------------------------------------------
+src\securization\__init__.py            1      0      0      0   100%
+src\securization\cli.py               135      1     18      1    99%
+src\securization\dashboard.py         165      4     10      1    97%
+src\securization\desplegador.py       141      0     20      0   100%
+src\securization\escaneo.py           170      7     60      4    95%
+src\securization\eventos.py           150      0     26      0   100%
+src\securization\generador.py         271      0     90      0   100%
+src\securization\inventario.py        104      3     14      0    97%
+src\securization\llm.py               113      0     20      0   100%
+src\securization\modelos.py            42      0      0      0   100%
+src\securization\operaciones.py       137      0      8      0   100%
+src\securization\orquestador.py        95      0     22      0   100%
+src\securization\parsers_linux.py      84      3     38      1    97%
+src\securization\parsing.py             8      0      0      0   100%
+src\securization\perfilador.py         86      0      4      0   100%
+src\securization\presentacion.py      110      0     32      1    99%
+src\securization\respuesta.py          26      0      6      0   100%
+src\securization\verificador.py        69      0     18      0   100%
+---------------------------------------------------------------------
+TOTAL                                1907     18    386      8    99%
+650 passed, 1 warning in 9.68s

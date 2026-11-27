@@ -1,0 +1,7 @@
+# 2026-11-27 18:21:55 UTC · 0 s · código de salida 0
+$ VBoxManage list runningvms
+
+"kali1" {5044770a-cae3-48c6-80e1-de4ae2244f20}
+"victima-01" {100a0ae8-5da6-44a9-b671-9a2a31c22bb8}
+"deception-central" {b168724b-6f21-45fd-a9a3-6d3fa10c0592}
+"victima-02" {4637c859-a82f-4beb-864d-f1da484ac212}

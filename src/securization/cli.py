@@ -13,13 +13,17 @@ Configuración por variables de entorno: SECURIZATION_DB (inventario.db),
 SECURIZATION_KEY_FILE (securization.key; o la clave en SECURIZATION_KEY),
 SECURIZATION_DECEPTION_HOST (deception-central) y SECURIZATION_DECOY_DIR (/home/lab/decoys).
 
-Solo orquesta lo que ya hacen los módulos: no construye ningún comando con texto del LLM y
-el despliegue definitivo exige el plan aprobado (`deploy_decoy`).
+Solo orquesta lo que ya hacen los módulos (`operaciones.py`): no construye ningún comando con
+texto del LLM y el despliegue definitivo exige el plan aprobado (`deploy_decoy`). Las
+operaciones largas pintan una barra de progreso en la salida de error.
 """
 
 import argparse
 import asyncio
+import ipaddress
 import os
+import socket
+import sys
 from collections.abc import Sequence
 from getpass import getpass
 from ipaddress import IPv4Address
@@ -33,33 +37,27 @@ from securization.desplegador import (
     DeploymentPlanStore,
     PlausibilityThresholdError,
     approve_plan,
-    build_deployment_plan,
-    deploy_decoy,
-    plant_breadcrumbs,
-    start_decoy,
 )
-from securization.escaneo import AsyncNmapRunner, enrich_profile, profile_tcp_ports, scan_host
-from securization.eventos import EventStore, collect_opencanary_events, fetch_decoy_log
-from securization.generador import (
-    Campaign,
-    CampaignStore,
-    CollisionError,
-    DecoyConfig,
-    build_campaign,
-    propose_decoy_hostname,
-)
-from securization.inventario import CredentialVault, Inventory
+from securization.escaneo import AsyncNmapRunner
+from securization.eventos import EventStore
+from securization.generador import CollisionError, propose_decoy_hostname
+from securization.inventario import CredentialVault, HostNotFoundError, Inventory
 from securization.llm import OllamaClient
-from securization.modelos import Fingerprint, HostProfile
-from securization.orquestador import VerificationResultStore, run_verification_loop
-from securization.perfilador import AsyncSshTransport, HostProfileStore, orchestrate_profiling
-
-_HOME_CMD = ("sh", "-c", 'getent passwd "$(id -un)" | cut -d: -f6')
-_DECOY_STARTUP_S = 10
+from securization.operaciones import (
+    BarraTerminal,
+    PlanNoAprobadoError,
+    crear_campana,
+    desplegar,
+    perfilar,
+    recoger_alertas,
+)
+from securization.perfilador import AsyncSshTransport, HostProfileStore
 
 
 class Runtime:
     """Base de datos, clave y fábricas de transportes reales; los tests la sustituyen."""
+
+    decoy_startup_s: float = 10
 
     def __init__(
         self,
@@ -136,8 +134,8 @@ def build_parser() -> argparse.ArgumentParser:
     aprobar = sub.add_parser("approve", help="aprobación manual del plan")
     aprobar.add_argument("campaign_id")
 
-    desplegar = sub.add_parser("deploy", help="planta breadcrumbs y despliega el señuelo")
-    desplegar.add_argument("campaign_id")
+    desplegar_ = sub.add_parser("deploy", help="planta breadcrumbs y despliega el señuelo")
+    desplegar_.add_argument("campaign_id")
 
     eventos = sub.add_parser("events", help="alertas de los señuelos")
     eventos.add_argument("action", choices=("collect", "list"))
@@ -145,11 +143,20 @@ def build_parser() -> argparse.ArgumentParser:
     dash = sub.add_parser("dashboard", help="dashboard web")
     dash.add_argument("--host", default="127.0.0.1")
     dash.add_argument("--port", type=int, default=8000)
+    dash.add_argument(
+        "--acciones",
+        action="store_true",
+        help="permite lanzar operaciones desde el dashboard aunque no escuche solo en local",
+    )
     return parser
 
 
 def _print(texto: str = "") -> None:
     print(texto, flush=True)
+
+
+def _barra() -> BarraTerminal:
+    return BarraTerminal(lambda linea: print(linea, file=sys.stderr, flush=True))
 
 
 async def _hosts(args: argparse.Namespace, rt: Runtime) -> None:
@@ -170,18 +177,7 @@ async def _hosts(args: argparse.Namespace, rt: Runtime) -> None:
 
 
 async def _profile(args: argparse.Namespace, rt: Runtime) -> None:  # pragma: no cover
-    host = rt.inventory.get_host(args.host_id)
-    store = HostProfileStore(rt.engine)
-    perfil = await orchestrate_profiling(
-        host_id=host.host_id,
-        address=IPv4Address(host.address),
-        os_family=host.os_family,
-        transport=rt.ssh(host.host_id),
-        store=store,
-    )
-    real = await scan_host(perfil.address, rt.runner, ports=profile_tcp_ports(perfil))
-    perfil = enrich_profile(perfil, real)
-    store.save(perfil)
+    perfil = await perfilar(rt, args.host_id, _barra())
     _print(f"{perfil.host_id} - {perfil.os_name}")
     for s in perfil.services:
         _print(f"  {s.port}/{s.protocol} {s.name} {s.product or ''} {s.version or ''}".rstrip())
@@ -196,57 +192,27 @@ async def _name(args: argparse.Namespace, rt: Runtime) -> None:  # pragma: no co
 
 
 async def _campaign(args: argparse.Namespace, rt: Runtime) -> None:
-    perfil = HostProfileStore(rt.engine).load(args.host_id)
-    ssh_host = rt.ssh(args.host_id)
-    home = (await ssh_host.run(_HOME_CMD)).strip()
-    conocidas = [f"{home}/{n}" for n in (await ssh_host.run(("ls", "-A", home))).split()]
     try:
-        campana = build_campaign(
-            perfil,
-            campaign_id=f"campana-{args.host_id}",
-            decoy_node_id=args.decoy_node,
-            decoy_address=args.decoy_ip,
-            home_dir=home,
-            known_paths=conocidas,
+        resultado = await crear_campana(
+            rt,
+            args.host_id,
+            decoy_node=args.decoy_node,
+            decoy_ip=args.decoy_ip,
+            max_attempts=args.max_attempts,
+            informe=_barra(),
         )
     except CollisionError as error:
         raise SystemExit(
             f"{args.host_id}: {error}; el fichero ya existe en el host y la herramienta "
             "nunca sobrescribe ficheros reales"
         ) from None
-    await _verify_and_plan(args, rt, perfil, campana, conocidas)  # pragma: no cover
-
-
-async def _verify_and_plan(  # pragma: no cover - E/S real: contenedores y nmap
-    args: argparse.Namespace,
-    rt: Runtime,
-    perfil: HostProfile,
-    campana: Campaign,
-    conocidas: list[str],
-) -> None:
-    puertos = profile_tcp_ports(perfil)
-    real = await scan_host(perfil.address, rt.runner, ports=puertos)
-    ssh_dc, sftp_dc = rt.ssh(rt.deception_host), rt.sftp(rt.deception_host)
-
-    async def arrancar(decoy: DecoyConfig) -> None:
-        await start_decoy(decoy, sftp=sftp_dc, ssh=ssh_dc, config_dir=rt.decoy_config_dir)
-
-    async def escanear(decoy: DecoyConfig) -> Fingerprint:
-        await asyncio.sleep(_DECOY_STARTUP_S)
-        return await scan_host(decoy.address, rt.runner, ports=puertos)
-
-    resultado = await run_verification_loop(
-        perfil, real, campana, start=arrancar, scan=escanear, max_attempts=args.max_attempts
-    )
-    plan = build_deployment_plan(resultado.campaign, resultado.report, known_paths=conocidas)
-    CampaignStore(rt.engine).save(resultado.campaign)
-    DeploymentPlanStore(rt.engine).save(plan)
-    VerificationResultStore(rt.engine).save(resultado)
-    for intento in resultado.attempts:
+    for intento in resultado.verificacion.attempts:
         _print(f"Intento {intento.attempt}: {intento.report.score}/{intento.report.threshold}")
         for diferencia in intento.report.differences:
             _print(f"    - {diferencia}")
-    _print(f"Parada: {resultado.stop_reason}. Plan {plan.campaign_id} guardado SIN aprobar.")
+    plan = resultado.plan
+    parada = resultado.verificacion.stop_reason
+    _print(f"Parada: {parada}. Plan {plan.campaign_id} guardado SIN aprobar.")
     _print(f"Breadcrumbs previstos: {', '.join(a.path for a in plan.actions)}")
 
 
@@ -261,34 +227,22 @@ async def _approve(args: argparse.Namespace, rt: Runtime) -> None:
 
 
 async def _deploy(args: argparse.Namespace, rt: Runtime) -> None:
-    plan = DeploymentPlanStore(rt.engine).load(args.campaign_id)
-    if not plan.ready_to_deploy:
+    try:
+        nombre = await desplegar(rt, args.campaign_id, _barra())
+    except PlanNoAprobadoError:
         raise SystemExit(
-            f"{plan.campaign_id}: el plan no está aprobado; usa `securization approve`"
-        )
-    campana = CampaignStore(rt.engine).load(args.campaign_id)  # pragma: no cover
-    await plant_breadcrumbs(plan, rt.sftp(plan.host_id))  # pragma: no cover
-    nombre = await deploy_decoy(  # pragma: no cover
-        plan,
-        campana,
-        sftp=rt.sftp(rt.deception_host),
-        ssh=rt.ssh(rt.deception_host),
-        config_dir=rt.decoy_config_dir,
-    )
+            f"{args.campaign_id}: el plan no está aprobado; usa `securization approve`"
+        ) from None
+    plan = DeploymentPlanStore(rt.engine).load(args.campaign_id)
     _print(f"Plantados {len(plan.actions)} breadcrumbs en {plan.host_id}; señuelo {nombre}")
 
 
 async def _events(args: argparse.Namespace, rt: Runtime) -> None:
-    store = EventStore(rt.engine)
     if args.action == "collect":
-        campanas = CampaignStore(rt.engine).list_all()
-        ssh = rt.ssh(rt.deception_host)
-        for campana in campanas:
-            log = await fetch_decoy_log(campana.decoy.node_id, ssh)
-            nuevas = store.add_new(collect_opencanary_events(log, campanas))
-            _print(f"{campana.campaign_id}: {nuevas} nuevas")
+        for campaign_id, nuevas in (await recoger_alertas(rt, _barra())).items():
+            _print(f"{campaign_id}: {nuevas} nuevas")
         return
-    for e in store.list_recent():
+    for e in EventStore(rt.engine).list_recent():
         marca = f"breadcrumb {e.breadcrumb_service}" if e.breadcrumb_service else ""
         _print(
             f"{e.timestamp:%Y-%m-%d %H:%M:%S} {e.campaign_id:<22} {e.node_id:<10} "
@@ -312,6 +266,28 @@ async def run_command(args: argparse.Namespace, rt: Runtime) -> None:
     await _COMMANDS[args.command](args, rt)
 
 
+def ip_local_hacia(destino: str) -> str | None:
+    """IP local que usaría esta máquina para llegar a `destino` (sin enviar ningún paquete).
+
+    Es la dirección desde la que la herramienta escanea sus trampas; el dashboard la usa para
+    no presentar esos escaneos de verificación como si fueran un intruso.
+    """
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect((destino, 9))  # UDP: connect() solo elige ruta, no envía nada
+            return str(s.getsockname()[0])
+    except OSError:
+        return None
+
+
+def acciones_permitidas(host: str, forzar: bool) -> bool:
+    """El dashboard solo lanza operaciones si escucha en local, salvo que se fuerce."""
+    try:
+        return forzar or ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return forzar or host == "localhost"
+
+
 def main(argv: Sequence[str] | None = None) -> None:  # pragma: no cover - punto de entrada
     args = build_parser().parse_args(argv)
     rt = Runtime.from_env()
@@ -320,7 +296,15 @@ def main(argv: Sequence[str] | None = None) -> None:  # pragma: no cover - punto
 
         from securization.dashboard import create_app
 
-        uvicorn.run(create_app(rt.engine, rt.vault), host=args.host, port=args.port)
+        entorno = rt if acciones_permitidas(args.host, args.acciones) else None
+        propias: frozenset[str] = frozenset()
+        try:
+            propia = ip_local_hacia(rt.inventory.get_host(rt.deception_host).address)
+            propias = frozenset({propia}) if propia else frozenset()
+        except HostNotFoundError:
+            pass
+        app = create_app(rt.engine, rt.vault, entorno=entorno, ips_propias=propias)
+        uvicorn.run(app, host=args.host, port=args.port)
         return
     asyncio.run(run_command(args, rt))
 

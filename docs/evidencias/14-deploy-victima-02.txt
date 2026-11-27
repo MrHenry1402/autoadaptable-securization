@@ -1,0 +1,4 @@
+# 2026-11-27 18:57:52 UTC · 8 s · código de salida 0
+$ securization deploy campana-victima-02
+
+Plantados 3 breadcrumbs en victima-02; señuelo decoy-files-02

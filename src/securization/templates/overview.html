@@ -1,10 +1,48 @@
 {% extends "base.html" %}
-{% block title %}securization - resumen{% endblock %}
+{% block title %}securization - inicio{% endblock %}
+{% block nav_inicio %}activo{% endblock %}
 {% block content %}
-<h1>Resumen</h1>
-<div class="stat"><span class="n">{{ total_hosts }}</span>hosts registrados</div>
-<div class="stat"><span class="n">{{ total_campaigns }}</span>campañas</div>
-<div class="stat"><span class="n">{{ total_pending }}</span>pendientes de aprobación</div>
-<div class="stat"><span class="n">{{ total_events }}</span>Alertas de los señuelos</div>
-<div class="stat"><span class="n">{{ total_breadcrumb_uses }}</span>Breadcrumbs usados por un atacante</div>
+<h1>Trampas para intrusos en tu red</h1>
+<p class="sub">Esta herramienta crea <strong>equipos falsos</strong> que se parecen a tus equipos reales y deja
+  <strong>contraseñas-cebo</strong> que llevan a ellos. Nadie legítimo los usa: si alguien los toca, es casi seguro un intruso, y te avisa.</p>
+
+<div class="rejilla">
+  <div class="cifra"><span class="n">{{ total_hosts }}</span><span class="t">equipos registrados</span></div>
+  <div class="cifra"><span class="n">{{ total_campaigns }}</span><span class="t">trampas creadas</span></div>
+  <div class="cifra"><span class="n">{{ total_pending }}</span><span class="t">esperando tu aprobación</span></div>
+  <div class="cifra {% if total_events %}destacada{% endif %}"><span class="n">{{ total_events }}</span><span class="t">Alertas de los señuelos</span></div>
+  <div class="cifra {% if total_breadcrumb_uses %}destacada{% endif %}"><span class="n">{{ total_breadcrumb_uses }}</span><span class="t">Breadcrumbs usados por un atacante (contraseñas-cebo)</span></div>
+</div>
+
+{% for t in trabajos %}{% include "_trabajo.html" %}{% endfor %}
+
+<h2>Cómo va tu protección</h2>
+<div class="pasos">
+  {% for p in pasos %}
+  <div class="paso {% if p.hecho %}hecho{% endif %}">
+    <div class="num">{% if p.hecho %}✓{% else %}{{ p.numero }}{% endif %}</div>
+    <h3>{{ p.titulo }}</h3>
+    <p>{{ p.explicacion }}</p>
+  </div>
+  {% endfor %}
+</div>
+
+<h2>Mapa de la red en directo</h2>
+<div class="tarjeta">
+  {% include "_mapa.html" %}
+</div>
+
+<h2>Últimas alertas</h2>
+{% if ultimas %}
+  {% for e in ultimas %}{% set a = describir_alerta(e) %}
+  <div class="alerta {{ a.gravedad }}">
+    <div class="icono">{% if a.gravedad == "alta" %}🚨{% elif a.gravedad == "media" %}⚠️{% elif a.gravedad == "propia" %}🔧{% else %}👀{% endif %}</div>
+    <div><h4>{{ a.titulo }}</h4><p>{{ a.detalle }}</p></div>
+    <div class="cuando">{{ e.timestamp.strftime("%d/%m %H:%M:%S") }}</div>
+  </div>
+  {% endfor %}
+  <p><a href="/events">Ver todas las alertas →</a></p>
+{% else %}
+  <p class="info">Sin alertas por ahora. Cuando alguien toque una trampa aparecerá aquí.</p>
+{% endif %}
 {% endblock %}

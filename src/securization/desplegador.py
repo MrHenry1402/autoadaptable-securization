@@ -28,6 +28,7 @@ import contextlib
 import hashlib
 import re
 from collections.abc import Iterable
+from datetime import datetime
 from typing import Protocol, runtime_checkable
 
 import asyncssh
@@ -84,6 +85,8 @@ class DeploymentPlan(BaseModel):
     plausibility_threshold: int
     differences: list[str] = Field(default_factory=list)
     approved: bool = False
+    # Cuándo se desplegó de verdad (cebos plantados y señuelo arrancado); None si todavía no.
+    deployed_at: datetime | None = None
 
     @property
     def ready_to_deploy(self) -> bool:

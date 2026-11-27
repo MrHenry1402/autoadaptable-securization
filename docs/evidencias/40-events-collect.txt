@@ -1,0 +1,5 @@
+# 2026-11-27 18:59:10 UTC · 2 s · código de salida 0
+$ securization events collect
+
+campana-victima-01: 0 nuevas
+campana-victima-02: 9 nuevas

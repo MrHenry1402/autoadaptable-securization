@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine
 from sqlmodel import create_engine
 
+from conftest import FakeEntorno
 from securization.dashboard import create_app
 from securization.desplegador import DeploymentPlanStore, build_deployment_plan
 from securization.eventos import EventStore, collect_opencanary_events
@@ -129,7 +130,8 @@ def test_host_detail_con_perfil_muestra_servicios(
     registrar_host(engine, vault)
     HostProfileStore(engine).save(PERFIL)
     respuesta = client.get("/hosts/victima-01")
-    assert "ssh" in respuesta.text
+    assert "Acceso remoto (SSH)" in respuesta.text
+    assert "SSH-2.0-OpenSSH_9.2p1" in respuesta.text
 
 
 def test_host_detail_sin_registrar_404(client: TestClient) -> None:
@@ -282,3 +284,128 @@ def test_detalle_de_campana_muestra_los_intentos_del_bucle(
     assert "50" in respuesta.text
     assert "delata ubuntu" in respuesta.text
     assert "aprobado" in respuesta.text
+
+
+# --- Acciones con barra de progreso, mapa y ayuda (rediseño para público no técnico) ----------
+
+
+def _id_trabajo(html: str) -> str:
+    import re
+
+    encontrado = re.search(r'id="trabajo-([0-9a-f]+)"', html)
+    assert encontrado, html
+    return encontrado.group(1)
+
+
+def test_acciones_desactivadas_en_modo_solo_lectura(client: TestClient) -> None:
+    respuesta = client.post("/acciones/alertas")
+    assert respuesta.status_code == 403
+    assert "solo lectura" in respuesta.text
+
+
+def test_perfilar_desde_el_dashboard_muestra_el_progreso_hasta_el_final(
+    entorno: FakeEntorno,
+) -> None:
+    cliente = TestClient(create_app(entorno.engine, entorno.vault, entorno=entorno))
+    respuesta = cliente.post("/acciones/perfilar/victima-01")
+    assert respuesta.status_code == 200
+    assert "Analizando victima-01" in respuesta.text
+    final = cliente.get(f"/trabajos/{_id_trabajo(respuesta.text)}")
+    assert "100 %" in final.text
+    assert "Análisis terminado" in final.text
+    assert 'hx-trigger="every 1s"' not in final.text  # terminado: deja de preguntar
+    assert "Ver el resultado" in final.text
+
+
+def test_crear_trampa_con_ip_no_valida_avisa(entorno: FakeEntorno) -> None:
+    cliente = TestClient(create_app(entorno.engine, entorno.vault, entorno=entorno))
+    respuesta = cliente.post(
+        "/acciones/campana/victima-01", data={"decoy_node": "web-01", "decoy_ip": "no-ip"}
+    )
+    assert respuesta.status_code == 400
+    assert "no es una dirección IP válida" in respuesta.text
+
+
+def test_crear_trampa_desde_el_dashboard(entorno: FakeEntorno) -> None:
+    cliente = TestClient(create_app(entorno.engine, entorno.vault, entorno=entorno))
+    cliente.post("/acciones/perfilar/victima-01")
+    respuesta = cliente.post(
+        "/acciones/campana/victima-01", data={"decoy_node": "web-01", "decoy_ip": "10.0.0.50"}
+    )
+    final = cliente.get(f"/trabajos/{_id_trabajo(respuesta.text)}")
+    assert "Trampa creada" in final.text
+    assert DeploymentPlanStore(entorno.engine).load("campana-victima-01").approved is False
+
+
+def test_desplegar_sin_aprobar_acaba_en_error_visible(entorno: FakeEntorno) -> None:
+    cliente = TestClient(create_app(entorno.engine, entorno.vault, entorno=entorno))
+    cliente.post("/acciones/perfilar/victima-01")
+    cliente.post(
+        "/acciones/campana/victima-01", data={"decoy_node": "web-01", "decoy_ip": "10.0.0.50"}
+    )
+    respuesta = cliente.post("/acciones/desplegar/campana-victima-01")
+    final = cliente.get(f"/trabajos/{_id_trabajo(respuesta.text)}")
+    assert "No se ha podido completar" in final.text
+    assert "no está aprobado" in final.text
+    assert entorno.sftp("victima-01").written == []
+
+
+def test_desplegar_campana_inexistente_404(entorno: FakeEntorno) -> None:
+    cliente = TestClient(create_app(entorno.engine, entorno.vault, entorno=entorno))
+    assert cliente.post("/acciones/desplegar/no-existe").status_code == 404
+
+
+def test_recoger_alertas_desde_el_dashboard(entorno: FakeEntorno) -> None:
+    cliente = TestClient(create_app(entorno.engine, entorno.vault, entorno=entorno))
+    respuesta = cliente.post("/acciones/alertas")
+    final = cliente.get(f"/trabajos/{_id_trabajo(respuesta.text)}")
+    assert "alertas nuevas" in final.text
+
+
+def test_trabajo_inexistente_404(client: TestClient) -> None:
+    assert client.get("/trabajos/no-existe").status_code == 404
+
+
+def test_mapa_y_ayuda(client: TestClient, engine: Engine, vault: CredentialVault) -> None:
+    assert "da de alta algún equipo" in client.get("/mapa").text
+    registrar_host(engine, vault)
+    mapa = client.get("/mapa").text
+    assert "<svg" in mapa
+    assert "victima-01" in mapa
+    ayuda = client.get("/ayuda")
+    assert ayuda.status_code == 200
+    assert "Glosario" in ayuda.text
+
+
+def test_inicio_explica_la_herramienta_y_muestra_los_pasos(client: TestClient) -> None:
+    texto = client.get("/").text
+    assert "Trampas para intrusos" in texto
+    assert "Cómo va tu protección" in texto
+    assert "Mapa de la red en directo" in texto
+
+
+def test_alertas_de_la_propia_herramienta_se_presentan_como_comprobacion(engine: Engine) -> None:
+    EventStore(engine).add_new(collect_opencanary_events(LOG_REAL, [CAMPANA_FICHEROS]))
+    ip = EventStore(engine).list_recent()[0].src_host
+    cliente = TestClient(
+        create_app(
+            engine, CredentialVault(CredentialVault.generate_key()), ips_propias=frozenset({ip})
+        )
+    )
+    assert "Comprobación de la propia herramienta" in cliente.get("/events").text
+
+
+def test_campana_desplegada_no_ofrece_volver_a_desplegar(
+    engine: Engine, vault: CredentialVault
+) -> None:
+    from datetime import datetime
+
+    from securization.desplegador import approve_plan
+
+    plan = approve_plan(build_deployment_plan(campana(), reporte(95)))
+    DeploymentPlanStore(engine).save(
+        plan.model_copy(update={"deployed_at": datetime(2026, 11, 27)})
+    )
+    texto = TestClient(create_app(engine, vault)).get("/campaigns/campana-01").text
+    assert "Desplegada" in texto
+    assert "Desplegar en la red" not in texto

@@ -1,29 +1,65 @@
 {% extends "base.html" %}
 {% block title %}securization - {{ host.host_id }}{% endblock %}
+{% block nav_equipos %}activo{% endblock %}
 {% block content %}
-<h1>{{ host.host_id }}</h1>
-<p><strong>Dirección:</strong> {{ host.address }} &middot; <strong>SO:</strong> {{ host.os_family }}
-   &middot; <strong>Usuario SSH:</strong> {{ host.ssh_user }}:{{ host.ssh_port }}</p>
+<p><a href="/hosts">← Equipos</a></p>
+<h1>{% if es_host_senuelos %}🪤{% else %}🖥️{% endif %} {{ host.host_id }}</h1>
+<p class="sub mono">{{ host.address }} · sistema {{ host.os_family }} · acceso como {{ host.ssh_user }} (puerto {{ host.ssh_port }})</p>
+
+<div id="zona-trabajo"></div>
+
+{% if es_host_senuelos %}
+<p class="info">Este equipo es el que <strong>aloja las trampas</strong> (contenedores con su propia dirección en la red). No se le crea trampa propia.</p>
+{% endif %}
 
 {% if profile %}
-<h2>Perfil</h2>
-<p><strong>Sistema:</strong> {{ profile.os_name }}</p>
-<p><strong>Directorios de primer nivel:</strong> {{ profile.top_level_dirs | join(", ") }}</p>
-<h3>Servicios</h3>
-<table>
-  <thead><tr><th>puerto</th><th>protocolo</th><th>nombre</th><th>banner</th></tr></thead>
-  <tbody>
-  {% for servicio in profile.services %}
-    <tr>
-      <td>{{ servicio.port }}</td>
-      <td>{{ servicio.protocol }}</td>
-      <td>{{ servicio.name }}</td>
-      <td>{{ servicio.banner or "—" }}</td>
-    </tr>
-  {% endfor %}
-  </tbody>
-</table>
+<div class="tarjeta">
+  <h2 style="margin-top:0">Lo que se ha visto en este equipo</h2>
+  <p><strong>Sistema operativo:</strong> {{ profile.os_name }}</p>
+  <table>
+    <thead><tr><th>Servicio</th><th>Puerto</th><th>Qué responde exactamente</th></tr></thead>
+    <tbody>
+    {% for servicio in profile.services %}
+      <tr>
+        <td>{{ nombre_servicio(servicio.name) }}</td>
+        <td>{{ servicio.port }}/{{ servicio.protocol }}</td>
+        <td class="mono">{{ servicio.banner or ((servicio.product or "") ~ " " ~ (servicio.version or "")) or "—" }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p class="ayuda">La trampa copiará estas respuestas para que, desde fuera, parezca un equipo más de la misma red.</p>
+  <details><summary>Detalles técnicos</summary>
+    <p class="mono">Directorios de primer nivel: {{ profile.top_level_dirs | join(", ") }}</p>
+    {% for paquete, version in profile.packages.items() %}<p class="mono" style="margin:0">{{ paquete }} {{ version }}</p>{% endfor %}
+  </details>
+</div>
 {% else %}
-<p class="warning">Este host todavía no se ha perfilado.</p>
+<p class="aviso">Este host todavía no se ha perfilado (analizado). Pulsa «Analizar» para que la herramienta vea qué sistema y servicios tiene.</p>
+{% endif %}
+
+{% if acciones and not es_host_senuelos %}
+<div class="tarjeta">
+  <h2 style="margin-top:0">Acciones</h2>
+  <form hx-post="/acciones/perfilar/{{ host.host_id }}" hx-target="#zona-trabajo" hx-swap="afterbegin" style="margin-bottom:1rem">
+    <button class="boton secundario" type="submit">🔍 {% if profile %}Volver a analizar{% else %}Analizar este equipo{% endif %}</button>
+    <p class="ayuda">Se conecta por SSH y lo escanea con nmap. Tarda menos de un minuto.</p>
+  </form>
+  {% if profile %}
+  <form hx-post="/acciones/campana/{{ host.host_id }}" hx-target="#zona-trabajo" hx-swap="afterbegin">
+    <h3>🪤 Crear la trampa de este equipo</h3>
+    <label for="decoy_node">Nombre de la trampa en la red</label>
+    <input type="text" id="decoy_node" name="decoy_node" value="{{ nodo_sugerido }}" required pattern="[a-z0-9][a-z0-9-]{0,62}">
+    <p class="ayuda">Minúsculas, números y guiones. Que parezca un servidor normal (nada de «trampa» ni «honeypot»).</p>
+    <label for="decoy_ip">Dirección IP libre para la trampa</label>
+    <input type="text" id="decoy_ip" name="decoy_ip" value="{{ ip_sugerida }}" placeholder="por ejemplo 10.0.0.50" required>
+    <p class="ayuda">Debe ser una dirección de la misma red que no use ningún otro equipo.</p>
+    <p style="margin-top:1rem"><button class="boton" type="submit">Crear y comprobar la trampa</button></p>
+    <p class="ayuda">La herramienta arranca la trampa, la escanea como lo haría un atacante, la compara con este equipo y la corrige hasta que no se distinga (o tras 3 intentos). Tarda 1-2 minutos. No se despliega nada definitivo sin tu aprobación.</p>
+  </form>
+  {% endif %}
+</div>
+{% elif not acciones %}
+<p class="ayuda">Modo solo lectura: las acciones se lanzan desde la terminal o arrancando el dashboard en local.</p>
 {% endif %}
 {% endblock %}

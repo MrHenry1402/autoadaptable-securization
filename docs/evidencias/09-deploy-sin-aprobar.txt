@@ -1,0 +1,4 @@
+# 2026-11-27 18:25:43 UTC · 1 s · código de salida 1
+$ securization deploy campana-victima-01
+
+campana-victima-01: el plan no está aprobado; usa `securization approve`

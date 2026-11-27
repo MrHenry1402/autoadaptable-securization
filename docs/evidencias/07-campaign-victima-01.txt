@@ -1,0 +1,10 @@
+# 2026-11-27 18:23:16 UTC · 104 s · código de salida 0
+$ securization campaign victima-01 --decoy-node web-01 --decoy-ip 10.0.0.50
+
+Intento 1: 50/90
+    - SO distinguible: el señuelo delata ubuntu y el host real muestra debian
+    - producto y versión y extrainfo y banner distinto en 3306/tcp: producto: real='MariaDB' señuelo='MySQL'; versión: real='10.3.23 or earlier' señuelo='5.5.43-0ubuntu0.14.04.1'; extrainfo: real='unauthorized' señuelo=None; banner: real="C\\x00\\x00\\x00\\xFFj\\x04Host '10.0.0.1' is not allowed to connect to this MariaDB server" señuelo='mysql-handshake 5.5.43-0ubuntu0.14.04.1'
+Intento 2: 90/90
+    - versión y extrainfo y banner distinto en 3306/tcp: versión: real='10.3.23 or earlier' señuelo='5.5.5-11.8.9'; extrainfo: real='unauthorized' señuelo=None; banner: real="C\\x00\\x00\\x00\\xFFj\\x04Host '10.0.0.1' is not allowed to connect to this MariaDB server" señuelo='mysql-handshake 5.5.5-11.8.9-MariaDB-0+deb13u1'
+Parada: aprobado. Plan campana-victima-01 guardado SIN aprobar.
+Breadcrumbs previstos: /home/lab/.env, /home/lab/.my.cnf, /home/lab/db_backup.sql, /home/lab/notas_acceso.txt

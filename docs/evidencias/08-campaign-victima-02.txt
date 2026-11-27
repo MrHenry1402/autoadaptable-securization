@@ -1,0 +1,7 @@
+# 2026-11-27 18:25:00 UTC · 43 s · código de salida 0
+$ securization campaign victima-02 --decoy-node files-02 --decoy-ip 10.0.0.51
+
+Intento 1: 90/90
+    - producto y banner distinto en 6379/tcp: producto: real=None señuelo='Redis key-value store'; banner: real='-DENIED Redis is running in protected mode because protected mode is enabled and no password is set for the default user. In this m...' señuelo=None
+Parada: aprobado. Plan campana-victima-02 guardado SIN aprobar.
+Breadcrumbs previstos: /home/lab/.env, /home/lab/.netrc, /home/lab/notas_acceso.txt

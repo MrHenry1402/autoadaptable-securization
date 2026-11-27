@@ -1,0 +1,35 @@
+<div class="mapa" id="mapa" hx-get="/mapa" hx-trigger="every 5s" hx-swap="outerHTML">
+  {% if mapa.nodos|length <= 1 %}
+  <p class="info">Todavía no hay nada que dibujar: da de alta algún equipo y aparecerá aquí.</p>
+  {% else %}
+  <svg viewBox="0 0 {{ mapa.ancho }} {{ mapa.alto }}" role="img" aria-label="Mapa de la red: la herramienta, los equipos reales, las trampas y quién las ha tocado">
+    <text class="col" x="110" y="28">ESTA HERRAMIENTA</text>
+    <text class="col" x="340" y="28">EQUIPOS REALES</text>
+    <text class="col" x="590" y="28">TRAMPAS</text>
+    <text class="col" x="820" y="28">QUIÉN LAS TOCA</text>
+    {% for e in mapa.enlaces %}
+      {% set o = mapa.nodo(e.origen) %}{% set d = mapa.nodo(e.destino) %}
+      {% if e.tipo == "ataque" %}
+        {% set x1 = o.x - 85 %}{% set x2 = d.x + 85 %}
+      {% else %}
+        {% set x1 = o.x + 85 %}{% set x2 = d.x - 85 %}
+      {% endif %}
+      {% set mx = ((x1 + x2) / 2) | int %}
+      <path class="enlace {{ e.tipo }}" d="M {{ x1 }} {{ o.y }} C {{ mx }} {{ o.y }}, {{ mx }} {{ d.y }}, {{ x2 }} {{ d.y }}"><title>{{ e.etiqueta }}</title></path>
+    {% endfor %}
+    {% for n in mapa.nodos %}
+    <g class="nodo {{ n.tipo }}">
+      <rect x="{{ n.x - 85 }}" y="{{ n.y - 28 }}" width="170" height="56" rx="12"></rect>
+      <text class="e" x="{{ n.x }}" y="{{ n.y - 4 }}">{% if n.tipo == "herramienta" %}🛡️ {% elif n.tipo == "real" %}🖥️ {% elif n.tipo == "senuelo" %}🪤 {% else %}⚠️ {% endif %}{{ n.etiqueta }}</text>
+      <text class="d" x="{{ n.x }}" y="{{ n.y + 15 }}">{{ n.detalle }}</text>
+    </g>
+    {% endfor %}
+  </svg>
+  <div class="leyenda">
+    <span class="l-herr">La herramienta: analiza los equipos y comprueba las trampas</span>
+    <span class="l-real">Equipo real que proteges</span>
+    <span class="l-trampa">Trampa (equipo falso); la línea punteada sale de sus cebos</span>
+    <span class="l-atacante">Posible intruso: ha tocado una trampa (línea roja)</span>
+  </div>
+  {% endif %}
+</div>

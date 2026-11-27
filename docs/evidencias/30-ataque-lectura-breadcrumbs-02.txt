@@ -1,0 +1,20 @@
+# 2026-11-27 18:58:51 UTC · 2 s · desde victima-02 (comprometida)
+# El atacante, ya dentro de victima-02, busca credenciales en el home
+$ ls -la ~; echo; echo '--- ~/.netrc'; cat ~/.netrc; echo '--- ~/.env'; cat ~/.env
+
+total 32
+drwx------ 2 lab  lab  4096 Nov 27 19:57 .
+drwxr-xr-x 3 root root 4096 Nov 22 20:07 ..
+-rw-r--r-- 1 lab  lab   220 Nov 22 20:07 .bash_logout
+-rw-r--r-- 1 lab  lab  3526 Nov 22 20:07 .bashrc
+-rw------- 1 lab  lab    72 Nov 27 19:57 .env
+-rw------- 1 lab  lab    57 Nov 27 19:57 .netrc
+-rw------- 1 lab  lab   137 Nov 27 19:57 notas_acceso.txt
+-rw-r--r-- 1 lab  lab   807 Nov 22 20:07 .profile
+-rw-r--r-- 1 lab  lab     0 Nov 22 20:14 .sudo_as_admin_successful
+
+--- ~/.netrc
+machine 10.0.0.51 login backup password RMxYxHpJMbZ9HuwU
+--- ~/.env
+APP_ENV=production
+REDIS_URL=redis://:ACnJK99axFDY2P8u@10.0.0.51:6379/0
