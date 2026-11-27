@@ -74,6 +74,7 @@ Riesgo conocido para Windows (no resolver ahora): los deception hosts corren en 
 ## Trazabilidad del uso de IA
 - Los commits y las descripciones de PR no llevan ninguna marca de IA (ni `AI-Assisted`, ni `Co-Authored-By`, ni "Generated with"). La trazabilidad del uso de IA vive solo en AI_USAGE.md.
 - Por cada tarea, anadir una entrada en AI_USAGE.md: fecha, herramienta, resumen del prompt, que se genero, que se modifico a mano y commit asociado.
+- El usuario ha pedido explicitamente que Claude no aparezca en el GitHub publico del proyecto; por eso ningun commit ni PR lleva atribucion de IA.
 
 ## Hitos
 - H0 Laboratorio (VirtualBox, red interna labnet: deception-central 10.0.0.5, victima-01 10.0.0.10, victima-02 10.0.0.11, kali-lab 10.0.0.20)
@@ -88,6 +89,8 @@ Riesgo conocido para Windows (no resolver ahora): los deception hosts corren en 
 
 ## Estado actual
 Desarrollo y laboratorio (VirtualBox, red interna labnet) ya en la torre. El agente tiene permiso explicito del usuario para conectarse por SSH a las VMs del laboratorio y gestionarlas (VBoxManage, aprovisionamiento, diagnostico) directamente desde esta maquina.
+
+MVP completo (S0-S13, L1-L6, H0-H6) validado en el laboratorio real: inventario, perfilado, generador con IA (Ollama) y respaldo determinista, verificador y bucle de ajuste, despliegue, eventos, respuesta, CLI, dashboard y autodespliegue con Docker Compose. Entrega final (README como manual, memoria en Word, ensayo de la demo) tambien fusionada. Ver docs/PLAN.md y AI_USAGE.md para el detalle sesion a sesion.
 
 ## Idioma
 Codigo, identificadores y commits en ingles; docstrings y documentacion en espanol.

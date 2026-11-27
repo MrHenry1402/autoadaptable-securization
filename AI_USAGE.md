@@ -93,6 +93,13 @@ fichero es el único registro del uso de IA: los commits y los PR no llevan marc
 - **Qué se modificó a mano:** ninguno todavía; **pendiente de aprobación del usuario antes de implementar** (ver PR). La CI del PR falla a propósito por eso (módulo sin implementar), no es un error.
 - **Commit(s):** ver el PR en borrador #13, rama feature/s8-llm-client (apilada sobre feature/s6-generador-campanas, PR #12, aún sin fusionar).
 
+### 2026-11-03 - Traspaso portátil → torre y aclaración de atribución de IA
+- **Herramienta:** Claude Code (Claude Sonnet 5)
+- **Resumen del prompt:** varios prompts cortos de continuidad ("continua con el plan, revisa todo lo hecho anteriormente...", "que mas falta?", "podemos continuar?") y, al final, "todo esto esta hecho desde el portatil, puedes dejar todo preparado para que continue en la torre?": revisar sin errores el código ya fusionado de S1-S5, y dejar el repositorio en un estado recuperable desde otra máquina.
+- **Qué se generó:** PR #14 (rama docs/claude-md-estado-y-atribucion): actualiza el "Estado actual" de CLAUDE.md y deja explícito que, por petición del usuario, ningún commit ni PR lleva atribución de Claude en GitHub. Resuelto más tarde (ver entrada de fusión más abajo) con la política más estricta ya adoptada entre tanto: ninguna marca de IA en absoluto, incluido `AI-Assisted`.
+- **Qué se modificó a mano:** ninguno; pendiente de revisión.
+- **Commit(s):** ver el PR #14.
+
 ### 2026-11-19 - S8 (implementación): `llm.py` y `propose_decoy_hostname`
 - **Herramienta:** Claude Code (Claude Sonnet 5)
 - **Resumen del prompt:** retomar S8 donde se dejó (tests ya escritos y aprobados en la entrada anterior) e implementar `src/securization/llm.py` y `propose_decoy_hostname`/`DecoyIdentity` en `generador.py` para que los tests pasen.
@@ -253,3 +260,10 @@ fichero es el único registro del uso de IA: los commits y los PR no llevan marc
 - **Qué se generó:** `campaign` convierte una colisión de ruta (un breadcrumb que ya existe en el host real) en un mensaje claro en vez de una traza de Python, sin arrancar ningún señuelo; `hosts list` muestra `usuario@ip:puerto` (antes `lab@:22`). Tests de ambos casos. El dashboard fija un fondo claro explícito: sin él, en un navegador con tema oscuro el texto quedaba sobre fondo negro y era ilegible.
 - **Qué se modificó a mano:** nada; ruff, mypy, bandit y pytest (602 tests, 99 %) en verde. Detectado en el ensayo real contra victima-01, que conservaba los breadcrumbs de L4.
 - **Commit(s):** ver el PR de la rama fix/cli-demo-errors.
+
+### 2026-11-27 - Fusión del traspaso portátil → torre (PR #14) en main
+- **Herramienta:** Claude Code (Claude Sonnet 5)
+- **Resumen del prompt:** aviso automático de Auto-fix de que el PR #14 tenía conflictos con `main`; resolverlos.
+- **Qué se generó:** fusión de `main` en `docs/claude-md-estado-y-atribucion`, conservando todas las entradas de ambos lados de este fichero (reordenada la propia por fecha) y resolviendo en CLAUDE.md la contradicción que había quedado entre "se mantiene el trailer AI-Assisted" (mi texto, ya superado) y la política más estricta de no llevar ninguna marca de IA, ya vigente en `main`. "Estado actual" de CLAUDE.md se deja con la versión de `main` (laboratorio operativo, MVP completo), descartando la mía, desactualizada.
+- **Qué se modificó a mano:** ninguno.
+- **Commit(s):** ver el PR #14.
