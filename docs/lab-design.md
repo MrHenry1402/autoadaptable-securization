@@ -1,7 +1,7 @@
 # Laboratorio H0 (VirtualBox)
 
-Topología real del laboratorio, sobre VirtualBox en la máquina de desarrollo (torre, no el
-portátil que describía el estado inicial del proyecto). No incluye credenciales: están en
+Topología real del laboratorio, sobre VirtualBox en la máquina de desarrollo (la torre). No
+incluye credenciales: están en
 `lab-credentials.local.txt`, en la raíz del repositorio, ignorado por git (nunca se commitea).
 
 ## Red `labnet`
